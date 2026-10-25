@@ -1,0 +1,1153 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PokerScrum ♠️ - Planning Poker para Times Ágeis</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        poker: {
+                            felt: '#154334',
+                            feltDark: '#0b261d',
+                            leather: '#2b1810',
+                            gold: '#d4af37',
+                            goldHover: '#f3c63f',
+                            cardBg: '#1e293b'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <script type="module">
+        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+
+        const SUPABASE_URL = "https://inwjggrefdyfiiowneld.supabase.co";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlud2pnZ3JlZmR5Zmlpb3duZWxkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5NDM5MzcsImV4cCI6MjEwODUxOTkzN30.Upre-sIIs6L_M8AT_p23ZEFvtHTdvKbQ3etI0BXdSyE";
+
+        window.supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        window.SUPABASE_URL = SUPABASE_URL;
+        window.SUPABASE_ANON_KEY = SUPABASE_ANON_KEY;
+        window.dispatchEvent(new Event("supabase-ready"));
+    </script>
+
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #090d16;
+            color: #f1f5f9;
+            overflow-x: hidden;
+        }
+        .code-font { font-family: 'JetBrains Mono', monospace; }
+
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .poker-table-felt {
+            background: radial-gradient(ellipse at center, #1e5a46 0%, #11382b 65%, #081d16 100%);
+            box-shadow: inset 0 0 100px rgba(0,0,0,0.95), 0 25px 60px rgba(0,0,0,0.8);
+            border: 16px solid #2a160d;
+            outline: 3px solid #d4af37;
+            outline-offset: -3px;
+        }
+
+        .card-3d { perspective: 1000px; }
+        .card-inner {
+            position: relative; width: 100%; height: 100%;
+            transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform-style: preserve-3d;
+        }
+        .card-flipped .card-inner { transform: rotateY(180deg); }
+        .card-face-front, .card-face-back {
+            position: absolute; width: 100%; height: 100%;
+            backface-visibility: hidden; border-radius: 0.5rem;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .card-face-back {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 2px solid #3b82f6;
+            background-image: repeating-linear-gradient(45deg, rgba(59,130,246,0.1) 0, rgba(59,130,246,0.1) 8px, transparent 0, transparent 16px);
+        }
+        .card-face-front {
+            background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
+            color: #0f172a; transform: rotateY(180deg);
+            border: 2px solid #38bdf8; box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+        }
+
+        .projectile-element {
+            position: fixed; pointer-events: none; z-index: 9999;
+            font-size: 2.2rem; filter: drop-shadow(0 12px 10px rgba(0,0,0,0.6));
+            transform-origin: center center;
+        }
+
+        @keyframes avatarHitShake {
+            0% { transform: scale(1) rotate(0deg); }
+            20% { transform: scale(1.18) rotate(-12deg) translate(-8px, 4px); }
+            40% { transform: scale(0.9) rotate(10deg) translate(8px, -4px); }
+            60% { transform: scale(1.08) rotate(-6deg) translate(-4px, -2px); }
+            80% { transform: scale(0.98) rotate(3deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+        .hit-impact { animation: avatarHitShake 0.5s ease-out; }
+
+        @keyframes splatPop {
+            0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+            80% { transform: scale(1.2) rotate(10deg); opacity: 0.9; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+        .splat-stain { animation: splatPop 0.35s cubic-bezier(0.175,0.885,0.32,1.275) forwards; }
+
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+            50% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+        }
+        .voted-ring { animation: pulseGlow 2s infinite; }
+
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.6); }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .fade-in { animation: fadeIn 0.3s ease-out; }
+
+        @keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .slide-up { animation: slideUp 0.4s ease-out; }
+
+        .avatar-svg-wrap { width: 100%; height: 100%; }
+        .avatar-svg-wrap svg { width: 100%; height: 100%; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col bg-slate-950 text-slate-100">
+
+<div id="projectile-layer"></div>
+
+<div id="toast" class="fixed top-5 right-5 z-[100] transform translate-x-full transition-transform duration-300 glass-panel border border-emerald-500/30 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 pointer-events-none">
+    <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+    <span id="toast-message" class="text-xs font-semibold">Bem-vindo ao PokerScrum!</span>
+</div>
+
+<!-- ================= TELA DE ENTRADA (LOBBY) ================= -->
+<div id="lobby-screen" class="fixed inset-0 z-40 flex items-center justify-center p-4 bg-slate-950/95 backdrop-blur-md">
+    <div class="glass-panel border border-slate-700 rounded-2xl p-6 w-full max-w-2xl shadow-2xl slide-up max-h-[92vh] overflow-y-auto">
+        <div class="flex items-center gap-3 mb-5">
+            <div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-emerald-600 to-emerald-400 flex items-center justify-center text-slate-950 font-black text-2xl shadow-lg shadow-emerald-900/50 border border-emerald-300/40">♠️</div>
+            <div>
+                <h1 class="text-xl font-extrabold tracking-tight bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">PokerScrum</h1>
+                <p class="text-xs text-slate-400">Planning poker em tempo real para times ágeis</p>
+            </div>
+        </div>
+
+        <!-- Aba: criar / entrar -->
+        <div class="flex gap-2 mb-5">
+            <button id="tab-create" onclick="switchLobbyTab('create')" class="flex-1 py-2 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition">Criar Sala</button>
+            <button id="tab-join" onclick="switchLobbyTab('join')" class="flex-1 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-200 border border-slate-700 transition">Entrar em Sala</button>
+        </div>
+
+        <!-- Criar Sala -->
+        <div id="lobby-create" class="space-y-4">
+            <div class="bg-slate-950/60 rounded-xl p-4 border border-slate-800">
+                <p class="text-xs font-bold text-slate-400 mb-2">Sprint inicial (opcional)</p>
+                <input type="text" id="input-sprint-name" placeholder="Ex.: Sprint 49 • Checkout" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+            </div>
+            <div class="bg-slate-950/60 rounded-xl p-4 border border-slate-800">
+                <p class="text-xs font-bold text-slate-400 mb-2">Histórias iniciais (uma por linha)</p>
+                <textarea id="input-stories" rows="5" placeholder="US-101 Implementar login com Google&#10;US-102 Refatorar endpoint de pagamentos&#10;US-103 Corrigir bug do carrinho" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white code-font focus:outline-none focus:border-emerald-500 resize-none"></textarea>
+            </div>
+        </div>
+
+        <!-- Entrar em Sala -->
+        <div id="lobby-join" class="space-y-4 hidden">
+            <div class="bg-slate-950/60 rounded-xl p-4 border border-slate-800">
+                <p class="text-xs font-bold text-slate-400 mb-2">Código da sala</p>
+                <input type="text" id="input-room-code" maxlength="6" placeholder="Ex.: ABC123" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-lg text-white code-font font-bold uppercase tracking-widest text-center focus:outline-none focus:border-emerald-500">
+            </div>
+        </div>
+
+        <!-- Personagem (comum) -->
+        <div class="mt-5 border-t border-slate-800 pt-5">
+            <div class="flex items-center justify-between mb-3">
+                <p class="text-xs font-bold text-slate-300 uppercase tracking-wider">Seu personagem</p>
+                <button id="btn-randomize-avatar" onclick="randomizeAvatar()" class="text-[11px] text-emerald-400 hover:text-emerald-300 font-bold"><i class="fa-solid fa-shuffle mr-1"></i>Aleatório</button>
+            </div>
+            <div class="grid grid-cols-[120px_1fr] gap-4">
+                <div class="flex flex-col items-center gap-2">
+                    <div id="avatar-preview" class="w-[120px] h-[120px] rounded-xl overflow-hidden border-2 border-emerald-500/30 bg-slate-900"></div>
+                    <span class="text-[10px] text-slate-500">Prévia</span>
+                </div>
+                <div class="space-y-3">
+                    <div>
+                        <label class="text-[10px] font-bold text-slate-400 block mb-1">Seu nome</label>
+                        <input type="text" id="input-name" maxlength="24" placeholder="Como o time te chama?" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-emerald-500">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 block mb-1">Personagem</label>
+                            <div id="char-picker" class="grid grid-cols-6 gap-1.5 max-h-20 overflow-y-auto p-1 bg-slate-950 rounded-lg border border-slate-800"></div>
+                        </div>
+                        <div>
+                            <label class="text-[10px] font-bold text-slate-400 block mb-1">Tom de pele</label>
+                            <div id="skin-picker" class="flex flex-wrap gap-1.5 p-1 bg-slate-950 rounded-lg border border-slate-800 min-h-[44px] items-center"></div>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-3 gap-2">
+                        <select id="sel-cut" onchange="updateAvatarFromControls()" class="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500">
+                            <option value="short">Curto</option>
+                            <option value="waves">Ondulado</option>
+                            <option value="long">Longo</option>
+                            <option value="afro">Afro</option>
+                        </select>
+                        <select id="sel-accessory" onchange="updateAvatarFromControls()" class="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500">
+                            <option value="none">Sem acessório</option>
+                            <option value="glasses">Óculos</option>
+                            <option value="headphones">Headset</option>
+                            <option value="earrings">Brincos</option>
+                        </select>
+                        <select id="sel-shirt" onchange="updateAvatarFromControls()" class="bg-slate-950 border border-slate-800 rounded-lg px-2 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500">
+                            <option value="#7567f4">Roxo</option>
+                            <option value="#31b6a5">Turquesa</option>
+                            <option value="#e9a856">Âmbar</option>
+                            <option value="#4f86d9">Azul</option>
+                            <option value="#c878b5">Magenta</option>
+                            <option value="#6d76eb">Índigo</option>
+                            <option value="#d79554">Laranja</option>
+                            <option value="#559b87">Verde</option>
+                            <option value="#bb6b63">Terracota</option>
+                            <option value="#73996d">Oliva</option>
+                            <option value="#5d94b6">Azul-acinzentado</option>
+                            <option value="#a27ccb">Lilás</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button id="btn-enter-room" onclick="enterRoom()" class="mt-6 w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 active:scale-95 text-slate-950 font-extrabold text-sm shadow-lg shadow-emerald-950/50 transition flex items-center justify-center gap-2 border border-emerald-300/40">
+            <i class="fa-solid fa-door-open"></i> <span id="btn-enter-label">Criar e Entrar</span>
+        </button>
+    </div>
+</div>
+
+<!-- ================= HEADER BAR ================= -->
+<header class="w-full bg-slate-900/90 border-b border-slate-800/80 px-4 py-2 z-30 sticky top-0 backdrop-blur-lg hidden" id="app-header">
+    <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+            <div class="flex items-center gap-2">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-emerald-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-emerald-900/50 border border-emerald-300/40">♠️</div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <span class="text-base font-extrabold tracking-tight bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">PokerScrum</span>
+                    </div>
+                    <p class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                        <span>Sala:</span>
+                        <span class="code-font font-bold text-amber-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800" id="room-code-display">#AGILE-2026</span>
+                        <button onclick="copyInviteLink()" class="hover:text-emerald-400 text-slate-400 transition" title="Copiar link"><i class="fa-regular fa-copy"></i></button>
+                    </p>
+                </div>
+            </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+            <div class="hidden sm:flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                <span class="text-xs font-bold text-slate-300"><span id="online-count">0</span> Online</span>
+            </div>
+            <button id="btn-leave" onclick="leaveRoom()" class="px-3 py-2 rounded-xl bg-rose-950/60 hover:bg-rose-900 text-rose-300 font-bold text-xs border border-rose-800 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-right-from-bracket text-[10px]"></i> Sair
+            </button>
+        </div>
+    </div>
+</header>
+
+<!-- ================= MAIN LAYOUT ================= -->
+<div id="app-main" class="hidden flex-1 max-w-[1600px] w-full mx-auto p-3 md:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 relative">
+
+    <section class="lg:col-span-8 xl:col-span-9 flex flex-col gap-4">
+        <!-- STORY BAR -->
+        <div class="glass-panel rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-emerald-500 shadow-xl">
+            <div class="flex items-center gap-3 flex-1 min-w-[280px]">
+                <div class="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400 flex items-center justify-center font-bold text-base">
+                    <i class="fa-solid fa-bookmark"></i>
+                </div>
+                <div class="flex-1">
+                    <div class="flex items-center gap-2">
+                        <span class="code-font text-xs font-bold text-blue-400 bg-blue-950/80 px-2 py-0.5 rounded border border-blue-800/60" id="story-id">—</span>
+                        <span class="text-xs text-slate-400 font-semibold" id="story-sprint">—</span>
+                    </div>
+                    <h2 class="text-sm md:text-base font-bold text-slate-100 mt-0.5" id="story-title">Aguardando primeira história...</h2>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button onclick="previousStory()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition" title="Anterior"><i class="fa-solid fa-chevron-left"></i></button>
+                <span class="text-xs font-bold code-font text-slate-400"><span id="current-story-idx">0</span>/<span id="total-stories-idx">0</span></span>
+                <button onclick="nextStory()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition" title="Próxima"><i class="fa-solid fa-chevron-right"></i></button>
+                <button onclick="openAddStoryModal()" class="ml-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-plus text-[10px]"></i> História
+                </button>
+            </div>
+        </div>
+
+        <!-- POKER TABLE -->
+        <div class="relative w-full h-[420px] md:h-[480px] flex items-center justify-center my-1">
+            <div class="poker-table-felt w-[88%] md:w-[82%] h-[260px] md:h-[300px] rounded-[130px] md:rounded-[150px] relative flex flex-col items-center justify-center p-4">
+                <div class="absolute inset-3 border border-emerald-400/20 rounded-[120px] md:rounded-[140px] pointer-events-none"></div>
+
+                <div id="table-center-panel" class="z-10 text-center p-4 rounded-2xl glass-panel border border-emerald-500/30 max-w-xs md:max-w-sm w-full transition-all duration-300 shadow-2xl">
+                    <div id="voting-status-indicator" class="text-xs uppercase font-extrabold tracking-widest text-emerald-400 mb-1">
+                        <i class="fa-solid fa-hourglass-half mr-1"></i> Aguardando participantes
+                    </div>
+
+                    <div id="consensus-result-view" class="hidden my-2">
+                        <div class="flex items-baseline justify-center gap-2">
+                            <span class="text-4xl font-extrabold text-white code-font" id="avg-score-display">0</span>
+                            <span class="text-xs text-amber-400 font-bold bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800/60" id="consensus-badge">—</span>
+                        </div>
+                        <p class="text-[11px] text-slate-300 mt-1" id="consensus-stats">—</p>
+                    </div>
+
+                    <p class="text-[11px] text-slate-400 mb-3" id="sub-status-desc">Entre na sala para começar</p>
+
+                    <div class="flex items-center justify-center gap-2">
+                        <button id="btn-reveal" onclick="toggleRevealRound()" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 active:scale-95 text-slate-950 font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-950/50 transition flex items-center gap-2 border border-emerald-300/40">
+                            <i class="fa-solid fa-eye"></i> Revelar Cartas
+                        </button>
+                        <button onclick="resetRound()" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+                            <i class="fa-solid fa-rotate-right text-[10px]"></i> Reset
+                        </button>
+                    </div>
+                </div>
+
+                <div class="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
+                    <span class="text-9xl">♠️</span>
+                </div>
+            </div>
+
+            <div id="seats-layer" class="absolute inset-0 pointer-events-none"></div>
+        </div>
+
+        <!-- WEAPONS -->
+        <div class="glass-panel rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 border border-amber-500/20 shadow-xl">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center text-sm"><i class="fa-solid fa-crosshairs"></i></div>
+                <div>
+                    <div class="text-xs font-bold text-slate-200">Guerra de Escritório</div>
+                    <div class="text-[10px] text-slate-400">Selecione um item e clique num avatar para lançar</div>
+                </div>
+            </div>
+            <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                <button onclick="selectWeapon('airplane')" id="wpn-airplane" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 flex items-center gap-1.5" title="Aviãozinho">
+                    <span class="text-xl">✈️</span><span class="text-xs font-bold text-slate-300 hidden sm:inline">Avião</span>
+                </button>
+                <button onclick="selectWeapon('paperball')" id="wpn-paperball" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 flex items-center gap-1.5" title="Bolinha de papel">
+                    <span class="text-xl">📄</span><span class="text-xs font-bold text-slate-300 hidden sm:inline">Papel</span>
+                </button>
+                <button onclick="selectWeapon('coffee')" id="wpn-coffee" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 flex items-center gap-1.5" title="Café">
+                    <span class="text-xl">☕</span><span class="text-xs font-bold text-slate-300 hidden sm:inline">Café</span>
+                </button>
+                <button onclick="selectWeapon('gum')" id="wpn-gum" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 flex items-center gap-1.5" title="Chiclete">
+                    <span class="text-xl">🍬</span><span class="text-xs font-bold text-slate-300 hidden sm:inline">Chiclete</span>
+                </button>
+                <button onclick="selectWeapon('tomato')" id="wpn-tomato" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 flex items-center gap-1.5" title="Tomate">
+                    <span class="text-xl">🍅</span><span class="text-xs font-bold text-slate-300 hidden sm:inline">Tomate</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- DECK -->
+        <div class="glass-panel rounded-2xl p-4 border border-slate-800 shadow-2xl">
+            <div class="flex items-center justify-between mb-2">
+                <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5"><i class="fa-solid fa-layer-group"></i> Seu Baralho Fibonacci</span>
+                <span class="text-[11px] text-slate-400" id="card-selected-label">Carta: nenhuma</span>
+            </div>
+            <div class="flex items-center justify-between gap-1.5 md:gap-2 overflow-x-auto pt-2 pb-1 px-1" id="deck-container"></div>
+        </div>
+    </section>
+
+    <!-- SIDEBAR -->
+    <aside class="lg:col-span-4 xl:col-span-3 flex flex-col gap-4">
+        <div class="glass-panel rounded-2xl p-4 flex flex-col gap-4 border border-slate-800 shadow-xl flex-1">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2">
+                    <button onclick="switchSidebarTab('participants')" id="tab-btn-participants" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition">Participantes</button>
+                    <button onclick="switchSidebarTab('backlog')" id="tab-btn-backlog" class="text-xs font-bold px-3 py-1.5 rounded-xl text-slate-400 hover:text-slate-200 transition">Backlog (<span id="backlog-count">0</span>)</button>
+                    <button onclick="switchSidebarTab('stats')" id="tab-btn-stats" class="text-xs font-bold px-3 py-1.5 rounded-xl text-slate-400 hover:text-slate-200 transition">Stats</button>
+                </div>
+            </div>
+
+            <div id="tab-content-participants" class="flex-1 flex flex-col min-h-[280px]">
+                <div class="space-y-2 overflow-y-auto max-h-[400px] pr-1" id="participants-list"></div>
+                <div class="pt-3 border-t border-slate-800/80 text-[10px] text-slate-500 flex justify-between items-center">
+                    <span>Sincronização em tempo real</span>
+                    <span class="text-emerald-400 font-semibold"><i class="fa-solid fa-wifi mr-1"></i> Conectado</span>
+                </div>
+            </div>
+
+            <div id="tab-content-backlog" class="hidden space-y-2.5 overflow-y-auto max-h-[400px] pr-1">
+                <div id="backlog-items-container"></div>
+            </div>
+
+            <div id="tab-content-stats" class="hidden space-y-3">
+                <div class="text-xs font-bold text-slate-300">Distribuição dos votos</div>
+                <div class="space-y-2" id="distribution-chart-container">
+                    <p class="text-[11px] text-slate-500">Reveal as cartas para ver o gráfico.</p>
+                </div>
+            </div>
+        </div>
+    </aside>
+</div>
+
+<!-- MODAL: ADD STORY -->
+<div id="modal-add-story" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+    <div class="glass-panel border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+        <h3 class="text-base font-bold text-white mb-4 flex items-center gap-2"><i class="fa-solid fa-plus text-emerald-400"></i> Adicionar História</h3>
+        <div class="space-y-3 mb-5">
+            <div>
+                <label class="text-xs font-bold text-slate-400 block mb-1">ID do ticket</label>
+                <input type="text" id="input-new-story-id" placeholder="US-999" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white code-font focus:outline-none focus:border-emerald-500">
+            </div>
+            <div>
+                <label class="text-xs font-bold text-slate-400 block mb-1">Título</label>
+                <input type="text" id="input-new-story-title" placeholder="Descrição da história" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+            </div>
+            <div>
+                <label class="text-xs font-bold text-slate-400 block mb-1">Sprint</label>
+                <input type="text" id="input-new-story-sprint" placeholder="Ex.: Sprint 49" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+            </div>
+        </div>
+        <div class="flex justify-end gap-2">
+            <button onclick="closeAddStoryModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300">Cancelar</button>
+            <button onclick="addStory()" class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950">Adicionar</button>
+        </div>
+    </div>
+</div>
+
+<!-- ================= JAVASCRIPT ================= -->
+<script>
+// ============ AVATAR ENGINE (SVG) ============
+const AVATAR_PRESETS = [
+    {name:"Dev do café", skin:"#d79a6d", hair:"#272332", eyes:"#4a342a", cut:"waves", shirt:"#7567f4", accessory:"glasses"},
+    {name:"DJ do deploy", skin:"#75452f", hair:"#221e29", eyes:"#2f2220", cut:"afro", shirt:"#31b6a5", accessory:"headphones"},
+    {name:"Capitã do backlog", skin:"#f0c4a3", hair:"#b14b3c", eyes:"#476d5b", cut:"long", shirt:"#e9a856", accessory:"earrings"},
+    {name:"Caçador de bugs", skin:"#a86b47", hair:"#24252b", eyes:"#453026", cut:"short", shirt:"#4f86d9", accessory:"glasses"},
+    {name:"Artista do UX", skin:"#c58c6d", hair:"#e3d6b8", eyes:"#647f9d", cut:"waves", shirt:"#c878b5", accessory:"earrings"},
+    {name:"Streamer da sprint", skin:"#f2d3b3", hair:"#7c5ac4", eyes:"#55472d", cut:"short", shirt:"#6d76eb", accessory:"headphones"},
+    {name:"Mestre do merge", skin:"#543525", hair:"#1e2026", eyes:"#352a25", cut:"short", shirt:"#d79554", accessory:"none"},
+    {name:"Exploradora de ideias", skin:"#bd7b58", hair:"#312331", eyes:"#3d5d55", cut:"long", shirt:"#559b87", accessory:"glasses"},
+    {name:"Guardião do release", skin:"#edb98f", hair:"#40312a", eyes:"#59758b", cut:"waves", shirt:"#bb6b63", accessory:"headphones"},
+    {name:"Cientista do código", skin:"#814e35", hair:"#231f28", eyes:"#42342a", cut:"afro", shirt:"#73996d", accessory:"glasses"},
+    {name:"Skater do produto", skin:"#dca67f", hair:"#98663f", eyes:"#50745c", cut:"short", shirt:"#5d94b6", accessory:"none"},
+    {name:"Lenda do planning", skin:"#f3d2b7", hair:"#292531", eyes:"#615071", cut:"long", shirt:"#a27ccb", accessory:"earrings"},
+    {name:"Arquiteta de sistemas", skin:"#c58c6d", hair:"#1e2026", eyes:"#476d5b", cut:"short", shirt:"#4f86d9", accessory:"glasses"},
+    {name:"Ninja do debug", skin:"#a86b47", hair:"#231f28", eyes:"#42342a", cut:"afro", shirt:"#31b6a5", accessory:"headphones"},
+    {name:"Poeta do README", skin:"#f0c4a3", hair:"#e3d6b8", eyes:"#647f9d", cut:"long", shirt:"#7567f4", accessory:"earrings"},
+    {name:"Samurai do CI/CD", skin:"#dca67f", hair:"#1e2026", eyes:"#453026", cut:"short", shirt:"#d79554", accessory:"none"},
+    {name:"Mecânica de pipelines", skin:"#bd7b58", hair:"#b14b3c", eyes:"#476d5b", cut:"waves", shirt:"#73996d", accessory:"glasses"},
+    {name:"Chef do hotfix", skin:"#543525", hair:"#24252b", eyes:"#352a25", cut:"afro", shirt:"#bb6b63", accessory:"none"},
+    {name:"Piloto de sprint", skin:"#edb98f", hair:"#7c5ac4", eyes:"#55472d", cut:"short", shirt:"#6d76eb", accessory:"headphones"},
+    {name:"Cartógrafa de APIs", skin:"#f3d2b7", hair:"#292531", eyes:"#59758b", cut:"long", shirt:"#559b87", accessory:"earrings"},
+    {name:"Detetive de logs", skin:"#d79a6d", hair:"#40312a", eyes:"#42342a", cut:"waves", shirt:"#c878b5", accessory:"glasses"},
+    {name:"Jardineiro de legado", skin:"#814e35", hair:"#312331", eyes:"#50745c", cut:"afro", shirt:"#5d94b6", accessory:"none"},
+    {name:"Construtor de castelos", skin:"#f2d3b3", hair:"#98663f", eyes:"#615071", cut:"short", shirt:"#a27ccb", accessory:"earrings"},
+    {name:"Maestro de microsserviços", skin:"#c58c6d", hair:"#272332", eyes:"#4a342a", cut:"waves", shirt:"#d79554", accessory:"headphones"}
+];
+
+const PALETTE_SKIN = ["#f3d2b7","#edb98f","#d79a6d","#bd7b58","#a86b47","#814e35","#543525"];
+
+function avatarSVG(p) {
+    const skin=p.skin, hair=p.hair, shirt=p.shirt, eye=p.eyes;
+    let back = "", front = "";
+    if (p.cut === "long") {
+        back = '<path d="M30 60C24 17 96 10 99 57L105 108H24Z" fill="'+hair+'"/>';
+        front = '<path d="M34 52C30 20 83 15 96 48C78 48 69 36 65 30C61 44 48 48 34 52Z" fill="'+hair+'"/>';
+    } else if (p.cut === "afro") {
+        back = '<g fill="'+hair+'"><circle cx="40" cy="35" r="17"/><circle cx="58" cy="24" r="18"/><circle cx="78" cy="27" r="18"/><circle cx="92" cy="43" r="15"/><circle cx="33" cy="51" r="13"/></g>';
+        front = '<path d="M35 45Q36 24 66 25Q90 27 94 47L82 40L72 43L62 38L50 43Z" fill="'+hair+'"/>';
+    } else if (p.cut === "waves") {
+        front = '<path d="M33 54C25 38 37 21 49 21C55 7 75 18 77 21C97 18 102 40 94 52L85 40Q74 42 69 30Q62 44 36 44Z" fill="'+hair+'"/><path d="M48 28Q66 20 80 28" stroke="#fff" stroke-opacity=".13" stroke-width="4" fill="none" stroke-linecap="round"/>';
+    } else {
+        front = '<path d="M33 53L31 38Q34 17 64 18Q95 17 96 41L93 53L85 38Q62 46 41 36L40 52Z" fill="'+hair+'"/><path d="M41 29Q60 22 78 28" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="4" stroke-linecap="round"/>';
+    }
+    const headphones = p.accessory === "headphones"
+      ? '<path d="M27 65V48C27 5 101 5 101 48V65" stroke="#262839" stroke-width="7" fill="none"/><rect x="23" y="48" width="12" height="28" rx="6" fill="#34364d"/><rect x="94" y="48" width="12" height="28" rx="6" fill="#34364d"/><rect x="25" y="53" width="5" height="17" rx="2.5" fill="'+shirt+'"/><rect x="99" y="53" width="5" height="17" rx="2.5" fill="'+shirt+'"/>'
+      : "";
+    const glasses = p.accessory === "glasses"
+      ? '<g fill="none" stroke="#302e40" stroke-width="2.8"><rect x="40" y="50" width="20" height="16" rx="6"/><rect x="69" y="50" width="20" height="16" rx="6"/><path d="M60 56Q65 52 69 56M34 54H40M89 54H95"/></g>'
+      : "";
+    const earrings = p.accessory === "earrings"
+      ? '<g stroke="#f8ce73" stroke-width="3" fill="none"><circle cx="32" cy="71" r="4"/><circle cx="96" cy="71" r="4"/></g>'
+      : "";
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Avatar">'+
+      '<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="'+shirt+'" stop-opacity=".22"/><stop offset="1" stop-color="'+shirt+'" stop-opacity=".55"/></linearGradient><clipPath id="clip"><circle cx="64" cy="64" r="63"/></clipPath></defs>'+
+      '<g clip-path="url(#clip)"><rect width="128" height="128" fill="#e9e8f0"/><rect width="128" height="128" fill="url(#bg)"/><circle cx="99" cy="21" r="27" fill="#fff" opacity=".18"/>'+back+
+      '<path d="M12 132Q12 96 47 90H81Q115 95 116 132Z" fill="'+shirt+'"/><path d="M47 93Q63 109 81 93L78 84H50Z" fill="'+skin+'"/><path d="M51 87Q65 94 78 85V94Q64 101 51 92Z" fill="#412c35" opacity=".11"/>'+
+      '<ellipse cx="34" cy="61" rx="6" ry="10" fill="'+skin+'"/><ellipse cx="94" cy="61" rx="6" ry="10" fill="'+skin+'"/><path d="M36 43Q39 21 65 24Q92 26 93 49L90 72Q85 90 65 93Q45 90 38 72Z" fill="'+skin+'"/>'+
+      '<ellipse cx="46" cy="68" rx="7" ry="4" fill="#e78080" opacity=".18"/><ellipse cx="83" cy="68" rx="7" ry="4" fill="#e78080" opacity=".18"/>'+
+      '<path d="M44 48Q50 45 55 48M74 48Q80 44 85 48" fill="none" stroke="'+hair+'" stroke-width="2.6" stroke-linecap="round"/>'+
+      '<ellipse cx="50" cy="57" rx="3" ry="3.8" fill="'+eye+'"/><ellipse cx="79" cy="57" rx="3" ry="3.8" fill="'+eye+'"/><circle cx="51" cy="56" r=".9" fill="#fff"/><circle cx="80" cy="56" r=".9" fill="#fff"/>'+
+      '<path d="M64 59L61 68H66" fill="none" stroke="#49313a" stroke-opacity=".25" stroke-width="2" stroke-linecap="round"/><path d="M54 75Q64 84 75 74" fill="#fff" stroke="#78504d" stroke-width="1.4" stroke-linejoin="round"/>'+
+      front+glasses+earrings+headphones+
+      '<path d="M41 101L51 113M87 101L77 113" stroke="#fff" stroke-opacity=".2" stroke-width="3" stroke-linecap="round"/><path d="M61 108H68V128H61Z" fill="#fff" opacity=".07"/></g></svg>';
+}
+
+function avatarDataURL(p) {
+    return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(avatarSVG(p));
+}
+
+// ============ APP STATE ============
+const FIBONACCI_CARDS = ['0','1','2','3','5','8','13','21','34','55','89','?','☕'];
+
+let sb = null;          // supabase client
+let me = {              // my local identity
+    id: crypto.randomUUID(),
+    name: '',
+    appearance: Object.assign({}, AVATAR_PRESETS[0]),
+    isHost: false
+};
+let room = null;        // { id, code }
+let participants = [];  // array of participants from DB
+let stories = [];       // array of stories from DB
+let votes = [];         // votes for current story
+let currentStoryId = null;
+let revealed = false;
+let selectedWeapon = 'airplane';
+let myVote = null;
+let mySubscription = null;
+let splatMap = {};      // participantId -> [splats]
+
+// ============ LOBBY UI ============
+let lobbyTab = 'create';
+let selectedPreset = 0;
+
+function switchLobbyTab(tab) {
+    lobbyTab = tab;
+    const btnC = document.getElementById('tab-create');
+    const btnJ = document.getElementById('tab-join');
+    const divC = document.getElementById('lobby-create');
+    const divJ = document.getElementById('lobby-join');
+    const btnLabel = document.getElementById('btn-enter-label');
+    if (tab === 'create') {
+        btnC.className = 'flex-1 py-2 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition';
+        btnJ.className = 'flex-1 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-200 border border-slate-700 transition';
+        divC.classList.remove('hidden'); divJ.classList.add('hidden');
+        btnLabel.textContent = 'Criar e Entrar';
+    } else {
+        btnJ.className = 'flex-1 py-2 rounded-xl text-xs font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition';
+        btnC.className = 'flex-1 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-slate-200 border border-slate-700 transition';
+        divJ.classList.remove('hidden'); divC.classList.add('hidden');
+        btnLabel.textContent = 'Entrar na Sala';
+    }
+}
+
+function renderCharPicker() {
+    const c = document.getElementById('char-picker');
+    c.innerHTML = AVATAR_PRESETS.map((p,i) => {
+        const sel = i === selectedPreset ? 'border-2 border-emerald-400' : 'border border-transparent';
+        return '<button type="button" onclick="selectPreset('+i+')" class="'+sel+' rounded-lg overflow-hidden" title="'+p.name+'" aria-pressed="'+(i===selectedPreset)+'" style="width:28px;height:28px">'+
+            '<div class="avatar-svg-wrap" style="width:28px;height:28px">'+avatarSVG(p)+'</div></button>';
+    }).join('');
+}
+
+function selectPreset(i) {
+    selectedPreset = i;
+    me.appearance = Object.assign({}, AVATAR_PRESETS[i]);
+    syncControlsToAppearance();
+    updateAvatarPreview();
+    renderCharPicker();
+}
+
+function syncControlsToAppearance() {
+    document.getElementById('sel-cut').value = me.appearance.cut;
+    document.getElementById('sel-accessory').value = me.appearance.accessory;
+    document.getElementById('sel-shirt').value = me.appearance.shirt;
+    renderSkinPicker();
+}
+
+function renderSkinPicker() {
+    const c = document.getElementById('skin-picker');
+    c.innerHTML = PALETTE_SKIN.map(t => {
+        const sel = me.appearance.skin === t ? 'ring-2 ring-emerald-400' : '';
+        return '<button type="button" onclick="selectSkin(\''+t+'\')" class="w-5 h-5 rounded-full '+sel+'" style="background:'+t+'" aria-label="Tom '+t+'"></button>';
+    }).join('');
+}
+
+function selectSkin(t) {
+    me.appearance.skin = t;
+    updateAvatarPreview();
+    renderSkinPicker();
+}
+
+function updateAvatarFromControls() {
+    me.appearance.cut = document.getElementById('sel-cut').value;
+    me.appearance.accessory = document.getElementById('sel-accessory').value;
+    me.appearance.shirt = document.getElementById('sel-shirt').value;
+    updateAvatarPreview();
+}
+
+function updateAvatarPreview() {
+    const p = document.getElementById('avatar-preview');
+    p.innerHTML = '<div class="avatar-svg-wrap">'+avatarSVG(me.appearance)+'</div>';
+}
+
+function randomizeAvatar() {
+    const p = AVATAR_PRESETS[Math.floor(Math.random() * AVATAR_PRESETS.length)];
+    me.appearance = Object.assign({}, p);
+    selectedPreset = AVATAR_PRESETS.indexOf(p);
+    syncControlsToAppearance();
+    updateAvatarPreview();
+    renderCharPicker();
+}
+
+// ============ ENTER / CREATE ROOM ============
+async function enterRoom() {
+    const name = document.getElementById('input-name').value.trim();
+    if (!name) { showToast('Digite seu nome'); return; }
+    me.name = name;
+
+    if (!sb) {
+        showToast('Conectando ao servidor...');
+        return;
+    }
+
+    if (lobbyTab === 'create') {
+        await createRoom();
+    } else {
+        await joinRoom();
+    }
+}
+
+async function createRoom() {
+    try {
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/generate-room-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + SUPABASE_ANON_KEY }
+        });
+        if (!res.ok) throw new Error('Falha ao criar sala');
+        const { room: newRoom } = await res.json();
+        room = newRoom;
+
+        // add me as host
+        me.isHost = true;
+        await sb.from('participants').insert({
+            room_id: room.id,
+            name: me.name,
+            is_host: true,
+            appearance: me.appearance
+        });
+
+        // add stories
+        const storiesText = document.getElementById('input-stories').value.trim();
+        const sprintName = document.getElementById('input-sprint-name').value.trim() || 'Sprint atual';
+        const lines = storiesText ? storiesText.split('\n').map(s => s.trim()).filter(Boolean) : [];
+        const storyRows = lines.map((line, i) => {
+            const sp = line.split(/\s+(.*)/);
+            const ticket = sp[0] || `STORY-${i+1}`;
+            const title = sp[1] || line;
+            return { room_id: room.id, ticket_id: ticket, title, sprint: sprintName, display_order: i };
+        });
+        if (storyRows.length > 0) {
+            const { data: inserted } = await sb.from('stories').insert(storyRows).select();
+            if (inserted && inserted.length > 0) {
+                await sb.from('rooms').update({ current_story_id: inserted[0].id }).eq('id', room.id);
+            }
+        }
+
+        showApp();
+        subscribeToRoom();
+        await loadData();
+        showToast('Sala criada! Compartilhe o código.');
+    } catch (e) {
+        showToast('Erro ao criar sala: ' + e.message);
+    }
+}
+
+async function joinRoom() {
+    const code = document.getElementById('input-room-code').value.trim().toUpperCase();
+    if (!code) { showToast('Digite o código da sala'); return; }
+    try {
+        const { data: found, error } = await sb.from('rooms').select('*').eq('code', code).maybeSingle();
+        if (error || !found) { showToast('Sala não encontrada'); return; }
+        room = found;
+        me.isHost = false;
+        await sb.from('participants').insert({
+            room_id: room.id,
+            name: me.name,
+            is_host: false,
+            appearance: me.appearance
+        });
+        showApp();
+        subscribeToRoom();
+        await loadData();
+        showToast('Entrou na sala!');
+    } catch (e) {
+        showToast('Erro ao entrar: ' + e.message);
+    }
+}
+
+function showApp() {
+    document.getElementById('lobby-screen').classList.add('hidden');
+    document.getElementById('app-header').classList.remove('hidden');
+    document.getElementById('app-main').classList.remove('hidden');
+    document.getElementById('room-code-display').textContent = '#' + room.code;
+    renderDeck();
+}
+
+async function leaveRoom() {
+    if (!confirm('Sair da sala?')) return;
+    if (mySubscription) { mySubscription.unsubscribe(); mySubscription = null; }
+    try { await sb.from('participants').delete().eq('id', me.id); } catch(e) {}
+    location.reload();
+}
+
+// ============ REALTIME SUBSCRIPTIONS ============
+function subscribeToRoom() {
+    if (mySubscription) mySubscription.unsubscribe();
+
+    const handleChange = async () => { await loadData(); };
+
+    mySubscription = sb.channel('room-' + room.id)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'participants', filter: 'room_id=eq.' + room.id }, handleChange)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'stories', filter: 'room_id=eq.' + room.id }, handleChange)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'votes', filter: 'room_id=eq.' + room.id }, handleChange)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'rooms', filter: 'id=eq.' + room.id }, handleChange)
+        .subscribe();
+}
+
+// ============ LOAD DATA ============
+async function loadData() {
+    if (!room) return;
+    const [{ data: parts }, { data: sts }, { data: rm }] = await Promise.all([
+        sb.from('participants').select('*').eq('room_id', room.id).order('joined_at', { ascending: true }),
+        sb.from('stories').select('*').eq('room_id', room.id).order('display_order', { ascending: true }),
+        sb.from('rooms').select('*').eq('id', room.id).maybeSingle()
+    ]);
+
+    participants = parts || [];
+    stories = sts || [];
+    if (rm) { currentStoryId = rm.current_story_id; revealed = rm.revealed; }
+
+    // find me in participants
+    const meInDb = participants.find(p => p.name === me.name);
+    if (meInDb) { me.id = meInDb.id; me.isHost = meInDb.is_host; }
+
+    // load votes for current story
+    if (currentStoryId) {
+        const { data: vs } = await sb.from('votes').select('*').eq('story_id', currentStoryId);
+        votes = vs || [];
+        const myV = votes.find(v => v.participant_id === me.id);
+        myVote = myV ? myV.value : null;
+    } else {
+        votes = []; myVote = null;
+    }
+
+    renderAll();
+}
+
+// ============ RENDER ============
+function renderAll() {
+    renderSeats();
+    renderParticipantsList();
+    renderBacklog();
+    renderStoryHeader();
+    renderDeck();
+    updateRevealUI();
+    document.getElementById('online-count').textContent = participants.length;
+    document.getElementById('backlog-count').textContent = stories.length;
+}
+
+function renderStoryHeader() {
+    const cur = stories.find(s => s.id === currentStoryId);
+    if (!cur) {
+        document.getElementById('story-id').textContent = '—';
+        document.getElementById('story-sprint').textContent = '—';
+        document.getElementById('story-title').textContent = stories.length ? 'Selecione uma história no backlog' : 'Adicione histórias para começar';
+        document.getElementById('current-story-idx').textContent = '0';
+        document.getElementById('total-stories-idx').textContent = stories.length;
+        return;
+    }
+    document.getElementById('story-id').textContent = cur.ticket_id || '—';
+    document.getElementById('story-sprint').textContent = cur.sprint || '—';
+    document.getElementById('story-title').textContent = cur.title;
+    const idx = stories.findIndex(s => s.id === currentStoryId);
+    document.getElementById('current-story-idx').textContent = idx + 1;
+    document.getElementById('total-stories-idx').textContent = stories.length;
+}
+
+function renderSeats() {
+    const container = document.getElementById('seats-layer');
+    container.innerHTML = '';
+    const total = participants.length;
+    if (total === 0) return;
+
+    // arrange seats in ellipse; place me at bottom center
+    const myIdx = participants.findIndex(p => p.id === me.id);
+    const rx = 45, ry = 44;
+
+    participants.forEach((p, i) => {
+        // rotate so myIdx is at bottom (angle = PI/2)
+        const angleOffset = (myIdx >= 0 ? -myIdx : 0);
+        const angle = ((i + angleOffset) / total) * (2 * Math.PI) + (Math.PI / 2);
+        const posX = 50 + rx * Math.cos(angle);
+        const posY = 50 + ry * Math.sin(angle);
+
+        const seat = document.createElement('div');
+        seat.id = 'seat-' + p.id;
+        seat.style.left = posX + '%';
+        seat.style.top = posY + '%';
+        seat.style.transform = 'translate(-50%, -50%)';
+        seat.className = 'absolute pointer-events-auto flex flex-col items-center group transition-all duration-300';
+
+        const hasVoted = votes.some(v => v.participant_id === p.id);
+        const myVoteEntry = votes.find(v => v.participant_id === p.id);
+        const voteValue = myVoteEntry ? myVoteEntry.value : '?';
+        const isMe = p.id === me.id;
+        const splats = splatMap[p.id] || [];
+
+        seat.innerHTML = `
+            <div class="relative flex flex-col items-center">
+                <div class="card-3d w-9 h-13 md:w-11 md:h-16 mb-1 ${revealed ? 'card-flipped' : ''}">
+                    <div class="card-inner">
+                        <div class="card-face-back ${hasVoted ? 'border-emerald-400 shadow-lg shadow-emerald-500/30' : 'border-slate-800 opacity-40'}">
+                            ${hasVoted ? '<i class="fa-solid fa-check text-emerald-400 text-xs"></i>' : ''}
+                        </div>
+                        <div class="card-face-front text-xs md:text-sm font-extrabold code-font">${voteValue}</div>
+                    </div>
+                </div>
+                <div onclick="targetPlayerForThrow('${p.id}')" class="relative w-12 h-12 md:w-14 md:h-14 rounded-full bg-slate-900 border-2 ${hasVoted ? 'border-emerald-400 voted-ring' : 'border-slate-700'} ${isMe ? 'ring-2 ring-emerald-500/50' : ''} flex items-center justify-center overflow-hidden shadow-2xl cursor-pointer hover:scale-110 transition-transform">
+                    <div class="avatar-svg-wrap w-full h-full">${avatarSVG(p.appearance || AVATAR_PRESETS[0])}</div>
+                    ${hasVoted ? '<span class="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-slate-950 flex items-center justify-center text-[8px] text-slate-950 font-black"><i class="fa-solid fa-check"></i></span>' : ''}
+                    ${p.is_host ? '<span class="absolute -bottom-1 -left-1 w-4 h-4 bg-amber-500 rounded-full border-2 border-slate-950 flex items-center justify-center text-[8px] text-slate-950"><i class="fa-solid fa-crown"></i></span>' : ''}
+                    <div id="splats-${p.id}" class="absolute inset-0 pointer-events-none rounded-full overflow-hidden">
+                        ${splats.map(s => '<span class="splat-stain absolute text-sm" style="top:'+s.y+'%; left:'+s.x+'%;">'+s.icon+'</span>').join('')}
+                    </div>
+                    ${!isMe ? '<div class="absolute -bottom-6 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-950 text-[9px] text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/40 whitespace-nowrap shadow-md pointer-events-none">🎯 Lançar</div>' : ''}
+                </div>
+                <div class="mt-1 text-center">
+                    <div class="text-[11px] font-bold text-slate-200 line-clamp-1">${escapeHtml(p.name)}${isMe ? ' (você)' : ''}</div>
+                    ${p.is_host ? '<span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded border bg-amber-950/80 text-amber-300 border-amber-800">Host</span>' : ''}
+                </div>
+            </div>`;
+        container.appendChild(seat);
+    });
+}
+
+function renderParticipantsList() {
+    const c = document.getElementById('participants-list');
+    c.innerHTML = participants.map(p => {
+        const voted = votes.some(v => v.participant_id === p.id);
+        const isMe = p.id === me.id;
+        return '<div class="flex items-center gap-2 p-2 rounded-lg bg-slate-900/60 border border-slate-800">'+
+            '<div class="w-8 h-8 rounded-full overflow-hidden bg-slate-950 border border-slate-700"><div class="avatar-svg-wrap w-full h-full">'+avatarSVG(p.appearance || AVATAR_PRESETS[0])+'</div></div>'+
+            '<div class="flex-1 min-w-0">'+
+                '<div class="text-xs font-bold text-slate-200 truncate">'+escapeHtml(p.name)+(isMe ? ' (você)' : '')+'</div>'+
+                '<div class="text-[10px] text-slate-500">'+(p.is_host ? 'Host' : 'Membro')+'</div>'+
+            '</div>'+
+            '<span class="w-2.5 h-2.5 rounded-full '+(voted ? 'bg-emerald-500' : 'bg-slate-600')+'"></span>'+
+        '</div>';
+    }).join('') || '<p class="text-[11px] text-slate-500 p-2">Ninguém na sala ainda.</p>';
+}
+
+function renderBacklog() {
+    const c = document.getElementById('backlog-items-container');
+    c.innerHTML = stories.map((s, i) => {
+        const active = s.id === currentStoryId;
+        return '<div onclick="selectStory(\''+s.id+'\')" class="p-3 rounded-xl border transition cursor-pointer '+(active ? 'bg-emerald-950/60 border-emerald-500/50 text-white' : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200')+'">'+
+            '<div class="flex items-center justify-between mb-1">'+
+                '<span class="code-font text-[10px] font-bold text-blue-400 bg-blue-950/80 px-1.5 py-0.5 rounded border border-blue-800/60">'+escapeHtml(s.ticket_id||'—')+'</span>'+
+                '<span class="text-[10px] text-slate-500">'+(s.points ? s.points+' pts' : 'Sem estimativa')+'</span>'+
+            '</div>'+
+            '<div class="text-xs font-bold truncate">'+escapeHtml(s.title)+'</div>'+
+        '</div>';
+    }).join('') || '<p class="text-[11px] text-slate-500 p-2">Nenhuma história. Clique em "História" para adicionar.</p>';
+}
+
+function renderDeck() {
+    const c = document.getElementById('deck-container');
+    c.innerHTML = '';
+    FIBONACCI_CARDS.forEach(val => {
+        const sel = myVote === val;
+        const card = document.createElement('button');
+        card.className = 'min-w-[46px] md:min-w-[54px] h-[68px] md:h-[78px] rounded-xl font-extrabold text-sm md:text-base code-font transition-all duration-200 transform flex flex-col items-center justify-between p-2 border shadow-lg ' +
+            (sel ? 'bg-gradient-to-b from-emerald-400 to-teal-500 text-slate-950 border-emerald-200 -translate-y-3 scale-105 shadow-emerald-500/40' : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700/80 hover:-translate-y-1');
+        card.innerHTML = '<span class="text-[10px] self-start opacity-70">'+val+'</span><span class="text-base md:text-lg">'+val+'</span><span class="text-[10px] self-end opacity-70">'+val+'</span>';
+        card.onclick = () => castVote(val);
+        c.appendChild(card);
+    });
+    document.getElementById('card-selected-label').textContent = myVote ? 'Carta: ' + myVote : 'Carta: nenhuma';
+}
+
+// ============ VOTING ============
+async function castVote(val) {
+    if (!currentStoryId) { showToast('Selecione uma história primeiro'); return; }
+    if (revealed) { showToast('Ronda já revelada. Faça reset.'); return; }
+    myVote = val;
+    renderDeck();
+    renderSeats();
+    // upsert vote
+    const existing = votes.find(v => v.participant_id === me.id);
+    if (existing) {
+        await sb.from('votes').update({ value: val }).eq('id', existing.id);
+    } else {
+        await sb.from('votes').insert({ room_id: room.id, story_id: currentStoryId, participant_id: me.id, value: val });
+    }
+}
+
+async function toggleRevealRound() {
+    if (!me.isHost) { showToast('Só o host pode revelar'); return; }
+    revealed = !revealed;
+    await sb.from('rooms').update({ revealed }).eq('id', room.id);
+}
+
+async function resetRound() {
+    if (!me.isHost) { showToast('Só o host pode resetar'); return; }
+    revealed = false;
+    await sb.from('rooms').update({ revealed }).eq('id', room.id);
+    await sb.from('votes').delete().eq('story_id', currentStoryId);
+    myVote = null;
+    showToast('Ronda resetada');
+}
+
+function updateRevealUI() {
+    const btn = document.getElementById('btn-reveal');
+    const ind = document.getElementById('voting-status-indicator');
+    const cons = document.getElementById('consensus-result-view');
+    const sub = document.getElementById('sub-status-desc');
+
+    if (revealed) {
+        btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i> Esconder';
+        ind.textContent = 'Resultado da ronda';
+        ind.className = 'text-xs uppercase font-extrabold tracking-widest text-amber-400 mb-1';
+
+        const numericVotes = votes.map(v => parseFloat(v.value)).filter(v => !isNaN(v));
+        if (numericVotes.length > 0) {
+            const sum = numericVotes.reduce((a,b)=>a+b,0);
+            const avg = (sum / numericVotes.length).toFixed(1);
+            document.getElementById('avg-score-display').textContent = avg;
+            cons.classList.remove('hidden');
+            sub.textContent = 'Calculado a partir de ' + numericVotes.length + ' votos';
+            // consensus badge
+            const counts = {};
+            numericVotes.forEach(v => counts[v] = (counts[v]||0)+1);
+            const maxC = Math.max(...Object.values(counts));
+            const pct = Math.round((maxC / numericVotes.length) * 100);
+            document.getElementById('consensus-badge').textContent = pct >= 80 ? 'Alto consenso' : pct >= 50 ? 'Consenso médio' : 'Baixo consenso';
+            const mostCommon = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0];
+            document.getElementById('consensus-stats').textContent = 'Mais comum: ' + mostCommon[0] + ' (' + mostCommon[1] + ' votos)';
+            if (pct >= 80) { confetti({ particleCount: 80, spread: 70, origin: { y: 0.6 } }); }
+            renderDistributionChart(numericVotes);
+        } else {
+            cons.classList.add('hidden');
+            sub.textContent = 'Nenhum voto numérico';
+        }
+    } else {
+        btn.innerHTML = '<i class="fa-solid fa-eye"></i> Revelar Cartas';
+        const votedCount = votes.length;
+        const total = participants.length;
+        ind.innerHTML = '<i class="fa-solid fa-hourglass-half mr-1"></i> Votação em curso';
+        ind.className = 'text-xs uppercase font-extrabold tracking-widest text-emerald-400 mb-1';
+        cons.classList.add('hidden');
+        sub.textContent = votedCount + '/' + total + ' votaram';
+    }
+}
+
+function renderDistributionChart(votes) {
+    const counts = {};
+    votes.forEach(v => counts[v] = (counts[v]||0)+1);
+    const c = document.getElementById('distribution-chart-container');
+    c.innerHTML = Object.keys(counts).map(val => {
+        const cnt = counts[val];
+        const pct = Math.round((cnt / votes.length) * 100);
+        return '<div><div class="flex justify-between text-[10px] font-bold text-slate-400 mb-1"><span>'+val+' pts</span><span>'+cnt+' ('+pct+'%)</span></div><div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800"><div class="h-full bg-emerald-500 rounded-full" style="width:'+pct+'%"></div></div></div>';
+    }).join('');
+}
+
+// ============ STORY NAVIGATION ============
+async function selectStory(storyId) {
+    if (!me.isHost) { showToast('Só o host troca de história'); return; }
+    currentStoryId = storyId;
+    revealed = false;
+    await sb.from('rooms').update({ current_story_id: storyId, revealed: false }).eq('id', room.id);
+    await sb.from('votes').delete().eq('story_id', storyId);
+    myVote = null;
+}
+
+function nextStory() {
+    const idx = stories.findIndex(s => s.id === currentStoryId);
+    if (idx < stories.length - 1) selectStory(stories[idx+1].id);
+}
+function previousStory() {
+    const idx = stories.findIndex(s => s.id === currentStoryId);
+    if (idx > 0) selectStory(stories[idx-1].id);
+}
+
+// ============ ADD STORY MODAL ============
+function openAddStoryModal() {
+    document.getElementById('modal-add-story').classList.remove('hidden');
+    document.getElementById('input-new-story-title').focus();
+}
+function closeAddStoryModal() {
+    document.getElementById('modal-add-story').classList.add('hidden');
+}
+async function addStory() {
+    const ticket = document.getElementById('input-new-story-id').value.trim();
+    const title = document.getElementById('input-new-story-title').value.trim();
+    const sprint = document.getElementById('input-new-story-sprint').value.trim();
+    if (!title) { showToast('Título obrigatório'); return; }
+    const order = stories.length;
+    const { data } = await sb.from('stories').insert({
+        room_id: room.id, ticket_id: ticket || 'STORY-'+(order+1), title, sprint: sprint || '—', display_order: order
+    }).select();
+    if (!currentStoryId && data && data[0]) {
+        await sb.from('rooms').update({ current_story_id: data[0].id }).eq('id', room.id);
+    }
+    closeAddStoryModal();
+    document.getElementById('input-new-story-id').value = '';
+    document.getElementById('input-new-story-title').value = '';
+    document.getElementById('input-new-story-sprint').value = '';
+    showToast('História adicionada');
+}
+
+// ============ WEAPONS / THROWING ============
+function selectWeapon(type) {
+    selectedWeapon = type;
+    updateWeaponDockUI();
+    showToast('Item: ' + type);
+}
+function updateWeaponDockUI() {
+    ['airplane','paperball','coffee','gum','tomato'].forEach(w => {
+        const btn = document.getElementById('wpn-'+w);
+        if (w === selectedWeapon) {
+            btn.className = 'weapon-btn p-2.5 rounded-xl bg-amber-500 text-slate-950 border border-amber-300 font-bold transition active:scale-95 shadow-lg shadow-amber-950 flex items-center gap-1.5';
+        } else {
+            btn.className = 'weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 flex items-center gap-1.5';
+        }
+    });
+}
+function targetPlayerForThrow(targetId) {
+    if (targetId === me.id) { showToast('Não pode lançar em si mesmo! 😅'); return; }
+    executeThrow(me.id, targetId, selectedWeapon);
+}
+function executeThrow(fromId, toId, weaponType) {
+    const fromSeat = document.getElementById('seat-' + fromId);
+    const toSeat = document.getElementById('seat-' + toId);
+    if (!fromSeat || !toSeat) return;
+    const fromR = fromSeat.getBoundingClientRect();
+    const toR = toSeat.getBoundingClientRect();
+    const startX = fromR.left + fromR.width/2, startY = fromR.top + fromR.height/2;
+    const endX = toR.left + toR.width/2, endY = toR.top + toR.height/2;
+
+    const proj = document.createElement('div');
+    proj.className = 'projectile-element';
+    const icons = { airplane:'✈️', paperball:'📄', coffee:'☕', gum:'🍬', tomato:'🍅' };
+    proj.innerText = icons[weaponType] || '✈️';
+    document.getElementById('projectile-layer').appendChild(proj);
+
+    const duration = 550, startTime = performance.now(), arcHeight = -130;
+    function animateArc(now) {
+        const elapsed = now - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const curX = startX + (endX - startX) * progress;
+        const linearY = startY + (endY - startY) * progress;
+        const curY = linearY + arcHeight * 4 * progress * (1 - progress);
+        const rotation = progress * 720;
+        proj.style.left = curX + 'px';
+        proj.style.top = curY + 'px';
+        proj.style.transform = 'translate(-50%,-50%) rotate('+rotation+'deg) scale('+(1+progress*0.2)+')';
+        if (progress < 1) requestAnimationFrame(animateArc);
+        else { proj.remove(); triggerHitImpact(toId, weaponType); }
+    }
+    requestAnimationFrame(animateArc);
+}
+function triggerHitImpact(targetId, weaponType) {
+    const seatEl = document.getElementById('seat-' + targetId);
+    if (seatEl) { seatEl.classList.add('hit-impact'); setTimeout(() => seatEl.classList.remove('hit-impact'), 500); }
+    const icons = { airplane:'🩹', paperball:'💥', coffee:'☕', gum:'🍬', tomato:'🍅' };
+    if (!splatMap[targetId]) splatMap[targetId] = [];
+    splatMap[targetId].push({ icon: icons[weaponType] || '💥', x: Math.floor(Math.random()*50)+25, y: Math.floor(Math.random()*50)+25 });
+    if (splatMap[targetId].length > 5) splatMap[targetId].shift();
+    renderSeats();
+}
+
+// ============ SIDEBAR TABS ============
+function switchSidebarTab(tab) {
+    ['participants','backlog','stats'].forEach(t => {
+        const btn = document.getElementById('tab-btn-'+t);
+        const content = document.getElementById('tab-content-'+t);
+        if (t === tab) {
+            btn.className = 'text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition';
+            content.classList.remove('hidden');
+        } else {
+            btn.className = 'text-xs font-bold px-3 py-1.5 rounded-xl text-slate-400 hover:text-slate-200 transition';
+            content.classList.add('hidden');
+        }
+    });
+}
+
+// ============ UTILS ============
+function showToast(msg) {
+    const toast = document.getElementById('toast');
+    document.getElementById('toast-message').innerText = msg;
+    toast.classList.remove('translate-x-full');
+    clearTimeout(window._toastTimer);
+    window._toastTimer = setTimeout(() => toast.classList.add('translate-x-full'), 2600);
+}
+function copyInviteLink() {
+    const url = window.location.origin + window.location.pathname + '?room=' + room.code;
+    navigator.clipboard?.writeText(url);
+    showToast('Link copiado!');
+}
+function escapeHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ============ INIT ============
+window.addEventListener('supabase-ready', () => {
+    sb = window.supabase;
+    // check URL for room code
+    const params = new URLSearchParams(window.location.search);
+    const roomCode = params.get('room');
+    if (roomCode) {
+        switchLobbyTab('join');
+        document.getElementById('input-room-code').value = roomCode.toUpperCase();
+    }
+});
+
+// init lobby UI
+renderCharPicker();
+renderSkinPicker();
+updateAvatarPreview();
+updateWeaponDockUI();
+
+// cleanup on unload
+window.addEventListener('beforeunload', () => {
+    if (sb && me.id) { sb.from('participants').delete().eq('id', me.id); }
+});
+</script>
+</body>
+</html>

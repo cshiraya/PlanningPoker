@@ -1,0 +1,4 @@
+project_id = "planning-poker"
+
+[functions.generate-room-code]
+verify_jwt = false
