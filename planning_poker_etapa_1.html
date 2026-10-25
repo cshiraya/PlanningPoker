@@ -1,0 +1,1355 @@
+	<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PokerScrum ♠️ - Gamified Planning Poker for Agile Teams</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        poker: {
+                            felt: '#154334',
+                            feltDark: '#0b261d',
+                            leather: '#2b1810',
+                            gold: '#d4af37',
+                            goldHover: '#f3c63f',
+                            cardBg: '#1e293b'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Canvas Confetti Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #090d16;
+            color: #f1f5f9;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Glassmorphism utility */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* 3D Poker Felt Table Styling */
+        .poker-table-felt {
+            background: radial-gradient(ellipse at center, #1e5a46 0%, #11382b 65%, #081d16 100%);
+            box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.95), 0 25px 60px rgba(0, 0, 0, 0.8);
+            border: 16px solid #2a160d;
+            outline: 3px solid #d4af37;
+            outline-offset: -3px;
+        }
+
+        /* 3D Flip Card Effect */
+        .card-3d {
+            perspective: 1000px;
+        }
+
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform-style: preserve-3d;
+        }
+
+        .card-flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card-face-front, .card-face-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card-face-back {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 2px solid #3b82f6;
+            background-image: repeating-linear-gradient(45deg, rgba(59, 130, 246, 0.1) 0, rgba(59, 130, 246, 0.1) 8px, transparent 0, transparent 16px);
+        }
+
+        .card-face-front {
+            background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
+            color: #0f172a;
+            transform: rotateY(180deg);
+            border: 2px solid #38bdf8;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+        }
+
+        /* Projectile Animation */
+        .projectile-element {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            font-size: 2.2rem;
+            filter: drop-shadow(0 12px 10px rgba(0,0,0,0.6));
+            transform-origin: center center;
+        }
+
+        /* Hit Shake Effect */
+        @keyframes avatarHitShake {
+            0% { transform: scale(1) rotate(0deg); }
+            20% { transform: scale(1.18) rotate(-12deg) translate(-8px, 4px); }
+            40% { transform: scale(0.9) rotate(10deg) translate(8px, -4px); }
+            60% { transform: scale(1.08) rotate(-6deg) translate(-4px, -2px); }
+            80% { transform: scale(0.98) rotate(3deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+
+        .hit-impact {
+            animation: avatarHitShake 0.5s ease-out;
+        }
+
+        /* Splat Stain Pop-in */
+        @keyframes splatPop {
+            0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+            80% { transform: scale(1.2) rotate(10deg); opacity: 0.9; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        .splat-stain {
+            animation: splatPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Pulsing Voted Ring */
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+            50% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+        }
+
+        .voted-ring {
+            animation: pulseGlow 2s infinite;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between bg-slate-950 text-slate-100">
+
+    <!-- Container layer for airborne thrown items -->
+    <div id="projectile-layer"></div>
+
+    <!-- Global Toast Alert -->
+    <div id="toast" class="fixed top-5 right-5 z-50 transform translate-x-full transition-transform duration-300 glass-panel border border-emerald-500/30 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 pointer-events-none">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span id="toast-message" class="text-xs font-semibold">Welcome to PokerScrum!</span>
+    </div>
+
+    <!-- ================= HEADER BAR ================= -->
+    <header class="w-full bg-slate-900/90 border-b border-slate-800/80 px-4 py-2 z-30 sticky top-0 backdrop-blur-lg">
+        <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+            
+            <!-- Brand & Room Code -->
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-emerald-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-emerald-900/50 border border-emerald-300/40">
+                        ♠️
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-base font-extrabold tracking-tight bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">PokerScrum</span>
+                            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-500/30 text-emerald-400">PRO</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                            <span>Room:</span>
+                            <span class="code-font font-bold text-amber-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">#AGILE-2026</span>
+                            <button onclick="copyInviteLink()" class="hover:text-emerald-400 text-slate-400 transition" title="Copy Room Invite Link"><i class="fa-regular fa-copy"></i></button>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Integrated Sponsor / Ad Banner (Header Slot 728x90 responsive) -->
+            <div class="hidden xl:flex items-center justify-center bg-slate-950/90 border border-amber-500/20 rounded-xl px-4 py-1.5 w-[600px] h-[52px] relative overflow-hidden group shadow-inner">
+                <div class="absolute top-1 right-2 text-[9px] uppercase font-bold text-slate-500 tracking-wider">Sponsor Ad</div>
+                <a href="#" onclick="showToast('Ad clicked: Redirecting to JetBrains Space...'); return false;" class="flex items-center gap-3 w-full">
+                    <div class="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-md flex-shrink-0">
+                        <i class="fa-solid fa-code"></i>
+                    </div>
+                    <div class="text-left flex-1 min-w-0">
+                        <div class="text-xs font-bold text-slate-200 truncate group-hover:text-amber-400 transition">JetBrains Space - All-in-one DevOps & Agile Tool</div>
+                        <div class="text-[10px] text-slate-400 truncate">Accelerate your sprint planning with seamless Jira & GitHub sync. Try free for 30 days!</div>
+                    </div>
+                    <span class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold px-2 py-1 rounded-md group-hover:bg-amber-500 group-hover:text-slate-950 transition">Try Free</span>
+                </a>
+            </div>
+
+            <!-- Quick Controls -->
+            <div class="flex items-center gap-2">
+                <!-- Online Users Count -->
+                <div class="hidden sm:flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span class="text-xs font-bold text-slate-300"><span id="online-count">8</span> Online</span>
+                </div>
+
+                <!-- Audio Toggle -->
+                <button id="btn-sound" onclick="toggleSound()" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center transition shadow-md" title="Toggle Sound FX">
+                    <i class="fa-solid fa-volume-high text-xs"></i>
+                </button>
+
+                <!-- Buy Me a Coffee Support Button -->
+                <a href="#" onclick="showToast('☕ Thank you for supporting PokerScrum development!'); return false;" class="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs px-3 py-2 rounded-xl shadow-lg shadow-amber-900/30 transition transform active:scale-95">
+                    <span>☕</span>
+                    <span class="hidden md:inline">Support Us</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ================= MAIN LAYOUT ================= -->
+    <div class="flex-1 max-w-[1600px] w-full mx-auto p-3 md:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 relative">
+
+        <!-- LEFT & CENTER AREA: STORY BAR + POKER TABLE + WEAPONS (Grid col 8 or 9) -->
+        <section class="lg:col-span-8 xl:col-span-9 flex flex-col justify-between gap-4">
+            
+            <!-- STORY CARD BAR (ACTIVE JIRA/AZURE TICKET) -->
+            <div class="glass-panel rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-emerald-500 shadow-xl">
+                <div class="flex items-center gap-3 flex-1 min-w-[280px]">
+                    <div class="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400 flex items-center justify-center font-bold text-base">
+                        <i class="fa-brands fa-jira"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="code-font text-xs font-bold text-blue-400 bg-blue-950/80 px-2 py-0.5 rounded border border-blue-800/60" id="story-id">US-204</span>
+                            <span class="text-xs text-slate-400 font-semibold" id="story-sprint">Sprint 48 • Payment Engine</span>
+                        </div>
+                        <h2 class="text-sm md:text-base font-bold text-slate-100 mt-0.5" id="story-title">Implement OAuth2 & Social Login (Google / GitHub)</h2>
+                    </div>
+                </div>
+
+                <!-- Story Quick Controls -->
+                <div class="flex items-center gap-2">
+                    <button onclick="previousStory()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition" title="Previous Story"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span class="text-xs font-bold code-font text-slate-400"><span id="current-story-idx">1</span>/<span id="total-stories-idx">4</span></span>
+                    <button onclick="nextStory()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition" title="Next Story"><i class="fa-solid fa-chevron-right"></i></button>
+                    <button onclick="openEditStoryModal()" class="ml-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-pen text-[10px]"></i> Edit
+                    </button>
+                </div>
+            </div>
+
+            <!-- POKER TABLE CONTAINER -->
+            <div class="relative w-full h-[420px] md:h-[480px] flex items-center justify-center my-1">
+                
+                <!-- Oval Poker Felt Table -->
+                <div class="poker-table-felt w-[88%] md:w-[82%] h-[260px] md:h-[300px] rounded-[130px] md:rounded-[150px] relative flex flex-col items-center justify-center p-4">
+                    
+                    <!-- Table Inner Metallic Line -->
+                    <div class="absolute inset-3 border border-emerald-400/20 rounded-[120px] md:rounded-[140px] pointer-events-none"></div>
+
+                    <!-- Center Display: Status / Stats / Actions -->
+                    <div id="table-center-panel" class="z-10 text-center p-4 rounded-2xl glass-panel border border-emerald-500/30 max-w-xs md:max-w-sm w-full transition-all duration-300 shadow-2xl">
+                        
+                        <div id="voting-status-indicator" class="text-xs uppercase font-extrabold tracking-widest text-emerald-400 mb-1">
+                            <i class="fa-solid fa-spinner fa-spin mr-1"></i> Voting In Progress
+                        </div>
+
+                        <!-- Revealed Results View (Initially Hidden) -->
+                        <div id="consensus-result-view" class="hidden my-2">
+                            <div class="flex items-baseline justify-center gap-2">
+                                <span class="text-4xl font-extrabold text-white code-font" id="avg-score-display">5.0</span>
+                                <span class="text-xs text-amber-400 font-bold bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800/60" id="consensus-badge">High Consensus</span>
+                            </div>
+                            <p class="text-[11px] text-slate-300 mt-1" id="consensus-stats">Most common: 5 (5 votes)</p>
+                        </div>
+
+                        <p class="text-[11px] text-slate-400 mb-3" id="sub-status-desc">Select an estimation card from your bottom dock</p>
+
+                        <!-- Primary Action Buttons -->
+                        <div class="flex items-center justify-center gap-2">
+                            <button id="btn-reveal" onclick="toggleRevealRound()" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 active:scale-95 text-slate-950 font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-950/50 transition flex items-center gap-2 border border-emerald-300/40">
+                                <i class="fa-solid fa-eye"></i> Reveal Cards
+                            </button>
+                            <button onclick="resetRound()" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-rotate-right text-[10px]"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Watermark Logo in felt -->
+                    <div class="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
+                        <span class="text-9xl">♠️</span>
+                    </div>
+                </div>
+
+                <!-- SEATS LAYER (8 Players placed around table via JS) -->
+                <div id="seats-layer" class="absolute inset-0 pointer-events-none">
+                    <!-- Injected via JavaScript -->
+                </div>
+            </div>
+
+            <!-- OFFICE WARFARE FLOATING TOOLBAR ("THROWING ENGINE") -->
+            <div class="glass-panel rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 border border-amber-500/20 shadow-xl">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center text-sm">
+                        <i class="fa-solid fa-crosshairs"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-200">Office Warfare Dock</div>
+                        <div class="text-[10px] text-slate-400">Select an item, then click any player's avatar to launch!</div>
+                    </div>
+                </div>
+
+                <!-- Weapon Selectors -->
+                <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                    <button onclick="selectWeapon('airplane')" id="wpn-airplane" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 relative group flex items-center gap-1.5" title="Paper Airplane">
+                        <span class="text-xl">✈️</span>
+                        <span class="text-xs font-bold text-slate-300 hidden sm:inline">Airplane</span>
+                    </button>
+
+                    <button onclick="selectWeapon('paperball')" id="wpn-paperball" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 relative group flex items-center gap-1.5" title="Paper Ball">
+                        <span class="text-xl">📄</span>
+                        <span class="text-xs font-bold text-slate-300 hidden sm:inline">Paper Ball</span>
+                    </button>
+
+                    <button onclick="selectWeapon('coffee')" id="wpn-coffee" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 relative group flex items-center gap-1.5" title="Hot Coffee Splash">
+                        <span class="text-xl">☕</span>
+                        <span class="text-xs font-bold text-slate-300 hidden sm:inline">Coffee</span>
+                    </button>
+
+                    <button onclick="selectWeapon('gum')" id="wpn-gum" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 relative group flex items-center gap-1.5" title="Sticky Gum">
+                        <span class="text-xl">🍬</span>
+                        <span class="text-xs font-bold text-slate-300 hidden sm:inline">Gum</span>
+                    </button>
+
+                    <button onclick="selectWeapon('tomato')" id="wpn-tomato" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 relative group flex items-center gap-1.5" title="Fresh Tomato">
+                        <span class="text-xl">🍅</span>
+                        <span class="text-xs font-bold text-slate-300 hidden sm:inline">Tomato</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- VOTING DECK DOCK (BOTTOM FIBONACCI CARDS) -->
+            <div class="glass-panel rounded-2xl p-4 border border-slate-800 shadow-2xl">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-layer-group"></i> Your Fibonacci Deck
+                    </span>
+                    <span class="text-[11px] text-slate-400" id="card-selected-label">Card selected: None</span>
+                </div>
+
+                <div class="flex items-center justify-between gap-1.5 md:gap-2 overflow-x-auto pt-2 pb-1 px-1" id="deck-container">
+                    <!-- Cards dynamically rendered via JS -->
+                </div>
+            </div>
+
+        </section>
+
+        <!-- RIGHT SIDEBAR: FEED, BACKLOG & TECH ADS (Grid col 4 or 3) -->
+        <aside class="lg:col-span-4 xl:col-span-3 flex flex-col gap-4">
+            
+            <!-- SIDEBAR TAB SWITCHER -->
+            <div class="glass-panel rounded-2xl p-4 flex flex-col gap-4 border border-slate-800 shadow-xl flex-1">
+                
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div class="flex items-center gap-2">
+                        <button onclick="switchSidebarTab('activity')" id="tab-btn-activity" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition">
+                            Activity
+                        </button>
+                        <button onclick="switchSidebarTab('backlog')" id="tab-btn-backlog" class="text-xs font-bold px-3 py-1.5 rounded-xl text-slate-400 hover:text-slate-200 transition">
+                            Backlog (<span id="backlog-count">4</span>)
+                        </button>
+                        <button onclick="switchSidebarTab('stats')" id="tab-btn-stats" class="text-xs font-bold px-3 py-1.5 rounded-xl text-slate-400 hover:text-slate-200 transition">
+                            Stats
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TAB 1: LIVE ACTIVITY FEED -->
+                <div id="tab-content-activity" class="flex-1 flex flex-col justify-between min-h-[280px]">
+                    <div class="space-y-2 overflow-y-auto max-h-[320px] pr-1" id="activity-log-list">
+                        <!-- Activity entries injected via JS -->
+                    </div>
+                    <div class="pt-3 border-t border-slate-800/80 text-[10px] text-slate-500 flex justify-between items-center">
+                        <span>Real-time Room Sync: Active</span>
+                        <span class="text-emerald-400 font-semibold"><i class="fa-solid fa-wifi mr-1"></i> Connected</span>
+                    </div>
+                </div>
+
+                <!-- TAB 2: BACKLOG QUEUE -->
+                <div id="tab-content-backlog" class="hidden space-y-2.5 overflow-y-auto max-h-[360px] pr-1">
+                    <div id="backlog-items-container">
+                        <!-- Injected via JS -->
+                    </div>
+                </div>
+
+                <!-- TAB 3: STATS & CONSENSUS DISTRIBUTION -->
+                <div id="tab-content-stats" class="hidden space-y-3">
+                    <div class="text-xs font-bold text-slate-300">Vote Distribution Chart</div>
+                    <div class="space-y-2" id="distribution-chart-container">
+                        <!-- Chart bars injected via JS -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- CARBON ADS / TECH AD SENSE PLACEHOLDER (300x250 Sidebar Card) -->
+            <div class="glass-panel rounded-2xl p-4 border border-blue-500/20 shadow-xl relative overflow-hidden group">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Sponsored Partner</span>
+                    <span class="text-[9px] text-slate-500">Ad #3002</span>
+                </div>
+
+                <a href="#" onclick="showToast('Ad clicked: Redirecting to Vercel Enterprise...'); return false;" class="block">
+                    <div class="w-full h-28 rounded-xl bg-gradient-to-br from-slate-900 to-black p-3 border border-slate-800 flex flex-col justify-between relative overflow-hidden group-hover:border-blue-500/50 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="text-white font-extrabold text-sm flex items-center gap-1.5">
+                                <span class="text-emerald-400">▲</span> Vercel
+                            </span>
+                            <span class="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30 font-bold">Deploy Free</span>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-slate-200">Develop. Preview. Ship.</div>
+                            <div class="text-[10px] text-slate-400">The Frontend Cloud platform for Agile teams.</div>
+                        </div>
+                    </div>
+                </a>
+
+                <p class="text-[10px] text-slate-400 mt-2 text-center">
+                    Enjoying PokerScrum? Support server costs by viewing partner offers.
+                </p>
+            </div>
+
+        </aside>
+
+    </div>
+
+    <!-- MODAL: EDIT USER STORY -->
+    <div id="modal-edit-story" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+        <div class="glass-panel border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h3 class="text-base font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-pen-to-square text-emerald-400"></i> Edit Story Details
+            </h3>
+            <div class="space-y-3 mb-5">
+                <div>
+                    <label class="text-xs font-bold text-slate-400 block mb-1">Story Ticket ID</label>
+                    <input type="text" id="input-story-id" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white code-font focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-400 block mb-1">Story Title / Summary</label>
+                    <input type="text" id="input-story-title" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button onclick="closeEditStoryModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300">Cancel</button>
+                <button onclick="saveStoryEdits()" class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950">Save Story</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= JAVASCRIPT APP LOGIC ================= -->
+    <script>
+        // --- CONSTANTS & DATA STRUCTURES ---
+        const FIBONACCI_CARDS = ['0', '1', '2', '3', '5', '8', '13', '21', '34', '55', '89', '?', '☕'];
+
+        const INITIAL_BACKLOG = [
+            { id: 'US-204', sprint: 'Sprint 48 • Payment Engine', title: 'Implement OAuth2 & Social Login (Google / GitHub)', points: null },
+            { id: 'US-205', sprint: 'Sprint 48 • Payment Engine', title: 'Refactor Stripe Webhook Listener for Idempotency', points: null },
+            { id: 'US-206', sprint: 'Sprint 48 • Analytics', title: 'Build Real-time WebSocket Dashboard for Active Users', points: null },
+            { id: 'US-207', sprint: 'Sprint 49 • Core UI', title: 'Migrate Styling Engine to Tailwind CSS v4', points: null }
+        ];
+
+        // Global State
+        let state = {
+            soundEnabled: true,
+            revealed: false,
+            selectedWeapon: 'airplane', // 'airplane', 'paperball', 'coffee', 'gum', 'tomato'
+            currentStoryIdx: 0,
+            backlog: [...INITIAL_BACKLOG],
+            myVote: null,
+            players: [
+                { id: 'p-1', name: 'You (Dev)', role: 'Frontend', avatar: '👨‍💻', isMe: true, vote: null, splats: [], roleColor: 'bg-emerald-950/80 text-emerald-300 border-emerald-800' },
+                { id: 'p-2', name: 'Sarah M.', role: 'Scrum Master', avatar: '👩‍💼', isMe: false, vote: null, splats: [], roleColor: 'bg-purple-950/80 text-purple-300 border-purple-800' },
+                { id: 'p-3', name: 'Alex K.', role: 'Lead Dev', avatar: '🧔', isMe: false, vote: null, splats: [], roleColor: 'bg-blue-950/80 text-blue-300 border-blue-800' },
+                { id: 'p-4', name: 'Maya T.', role: 'UX Designer', avatar: '🎨', isMe: false, vote: null, splats: [], roleColor: 'bg-pink-950/80 text-pink-300 border-pink-800' },
+                { id: 'p-5', name: 'Chen L.', role: 'QA Lead', avatar: '👩‍🔬', isMe: false, vote: null, splats: [], roleColor: 'bg-amber-950/80 text-amber-300 border-amber-800' },
+                { id: 'p-6', name: 'Dave P.', role: 'DevOps', avatar: '🚀', isMe: false, vote: null, splats: [], roleColor: 'bg-cyan-950/80 text-cyan-300 border-cyan-800' },
+                { id: 'p-7', name: 'Elena V.', role: 'Backend', avatar: '💻', isMe: false, vote: null, splats: [], roleColor: 'bg-indigo-950/80 text-indigo-300 border-indigo-800' },
+                { id: 'p-8', name: 'Marcus B.', role: 'Product Owner', avatar: '👑', isMe: false, vote: null, splats: [], roleColor: 'bg-rose-950/80 text-rose-300 border-rose-800' }
+            ],
+            activityLogs: []
+        };
+
+        // --- WEB AUDIO API SOUND SYNTHESIZER ---
+        class WebAudioSynth {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playWhoosh() {
+                if (!state.soundEnabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(450, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(70, this.ctx.currentTime + 0.28);
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.28);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.28);
+            }
+
+            playImpact() {
+                if (!state.soundEnabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.18);
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.18);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.18);
+            }
+
+            playCardFlip() {
+                if (!state.soundEnabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(650, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(220, this.ctx.currentTime + 0.09);
+                gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.09);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.09);
+            }
+        }
+
+        const synth = new WebAudioSynth();
+
+        // --- APP INITIALIZATION ---
+        window.onload = function() {
+            renderStoryHeader();
+            renderDeck();
+            renderSeats();
+            renderBacklog();
+            updateWeaponDockUI();
+            logActivity("Room created. 8 team members joined.");
+            logActivity("Story #US-204 selected for estimation.");
+        };
+
+        // --- RENDER STORY HEADER ---
+        function renderStoryHeader() {
+            const current = state.backlog[state.currentStoryIdx];
+            document.getElementById('story-id').innerText = current.id;
+            document.getElementById('story-sprint').innerText = current.sprint;
+            document.getElementById('story-title').innerText = current.title;
+            document.getElementById('current-story-idx').innerText = state.currentStoryIdx + 1;
+            document.getElementById('total-stories-idx').innerText = state.backlog.length;
+        }
+
+        // --- RENDER FIBONACCI DECK ---
+        function renderDeck() {
+            const container = document.getElementById('deck-container');
+            container.innerHTML = '';
+
+            FIBONACCI_CARDS.forEach(val => {
+                const isSelected = state.myVote === val;
+                const card = document.createElement('button');
+                card.className = `min-w-[46px] md:min-w-[54px] h-[68px] md:h-[78px] rounded-xl font-extrabold text-sm md:text-base code-font transition-all duration-200 transform flex flex-col items-center justify-between p-2 border shadow-lg ${
+                    isSelected 
+                        ? 'bg-gradient-to-b from-emerald-400 to-teal-500 text-slate-950 border-emerald-200 -translate-y-3 scale-105 shadow-emerald-500/40' 
+                        : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700/80 hover:-translate-y-1'
+                }`;
+                card.innerHTML = `
+                    <span class="text-[10px] self-start opacity-70">${val}</span>
+                    <span class="text-base md:text-lg">${val}</span>
+                    <span class="text-[10px] self-end opacity-70">${val}</span>
+                `;
+                card.onclick = () => selectMyVote(val);
+                container.appendChild(card);
+            });
+
+            document.getElementById('card-selected-label').innerText = state.myVote ? `Card selected: ${state.myVote}` : 'Card selected: None';
+        }
+
+        // --- RENDER 8 PLAYER SEATS AROUND OVAL TABLE ---
+        function renderSeats() {
+            const container = document.getElementById('seats-layer');
+            container.innerHTML = '';
+
+            const total = state.players.length;
+            // Ellipse radii for seats placement
+            const rx = 45; // %
+            const ry = 44; // %
+
+            state.players.forEach((player, index) => {
+                // Distribute seats around 360deg
+                const angle = (index / total) * (2 * Math.PI) + (Math.PI / 2);
+                const posX = 50 + rx * Math.cos(angle);
+                const posY = 50 + ry * Math.sin(angle);
+
+                const seat = document.createElement('div');
+                seat.id = `seat-${player.id}`;
+                seat.style.left = `${posX}%`;
+                seat.style.top = `${posY}%`;
+                seat.style.transform = 'translate(-50%, -50%)';
+                seat.className = 'absolute pointer-events-auto flex flex-col items-center group transition-all duration-300';
+
+                const hasVoted = player.vote !== null;
+
+                seat.innerHTML = `
+                    <div class="relative flex flex-col items-center">
+                        
+                        <!-- CARD ON TABLE FOR PLAYER -->
+                        <div class="card-3d w-9 h-13 md:w-11 md:h-16 mb-1 ${state.revealed ? 'card-flipped' : ''}">
+                            <div class="card-inner">
+                                <div class="card-face-back ${hasVoted ? 'border-emerald-400 shadow-lg shadow-emerald-500/30' : 'border-slate-800 opacity-40'}">
+                                    ${hasVoted ? '<i class="fa-solid fa-check text-emerald-400 text-xs"></i>' : ''}
+                                </div>
+                                <div class="card-face-front text-xs md:text-sm font-extrabold code-font">
+                                    ${player.vote || '?'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AVATAR CIRCLE -->
+                        <div onclick="targetPlayerForThrow('${player.id}')" class="relative w-12 h-12 md:w-14 md:h-14 rounded-full bg-slate-900 border-2 ${hasVoted ? 'border-emerald-400 voted-ring' : 'border-slate-700'} ${player.isMe ? 'ring-2 ring-emerald-500/50' : ''} flex items-center justify-center text-xl md:text-2xl shadow-2xl cursor-pointer hover:scale-110 transition-transform">
+                            <span>${player.avatar}</span>
+
+                            <!-- Voted Badge -->
+                            ${hasVoted ? '<span class="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-slate-950 flex items-center justify-center text-[8px] text-slate-950 font-black"><i class="fa-solid fa-check"></i></span>' : ''}
+
+                            <!-- Hit Splat Stickers Container -->
+                            <div id="splats-${player.id}" class="absolute inset-0 pointer-events-none rounded-full overflow-hidden">
+                                ${player.splats.map(s => `<span class="splat-stain absolute text-sm" style="top:${s.y}%; left:${s.x}%;">${s.icon}</span>`).join('')}
+                            </div>
+
+                            <!-- Target Crosshair overlay on hover -->
+                            ${!player.isMe ? `
+                                <div class="absolute -bottom-6 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-950 text-[9px] text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/40 whitespace-nowrap shadow-md pointer-events-none">
+                                    🎯 Target
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- PLAYER NAME & ROLE -->
+                        <div class="mt-1 text-center">
+                            <div class="text-[11px] font-bold text-slate-200 line-clamp-1">${player.name}</div>
+                            <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded border ${player.roleColor}">
+                                ${player.role}
+                            </span>
+                        </div>
+
+                    </div>
+                `;
+
+                container.appendChild(seat);
+            });
+        }
+
+        // --- VOTING LOGIC ---
+        function selectMyVote(val) {
+            synth.playCardFlip();
+            state.myVote = val;
+            
+            const me = state.players.find(p => p.isMe);
+            if (me) me.vote = val;
+
+            renderDeck();
+            renderSeats();
+            logActivity(`You voted on story #${state.backlog[state.currentStoryIdx].id}`);
+
+            // Simulate bots voting progress
+            simulateBotVotes();
+        }
+
+        function simulateBotVotes() {
+            state.players.forEach(p => {
+                if (!p.isMe && p.vote === null) {
+                    setTimeout(() => {
+                        if (!state.revealed) {
+                            const botChoices = ['3', '5', '5', '5', '8', '8', '13'];
+                            p.vote = botChoices[Math.floor(Math.random() * botChoices.length)];
+                            synth.playCardFlip();
+                            renderSeats();
+                            logActivity(`${p.name} (${p.role}) submitted a vote.`);
+                        }
+                    }, Math.random() * 2500 + 400);
+                }
+            });
+        }
+
+        // --- REVEAL ROUND & CONSENSUS ---
+        function toggleRevealRound() {
+            state.revealed = !state.revealed;
+            synth.playCardFlip();
+
+            const btn = document.getElementById('btn-reveal');
+            const statusIndicator = document.getElementById('voting-status-indicator');
+            const consensusView = document.getElementById('consensus-result-view');
+            const subStatusDesc = document.getElementById('sub-status-desc');
+
+            if (state.revealed) {
+                btn.innerHTML = `<i class="fa-solid fa-eye-slash"></i> Hide Cards`;
+                btn.classList.replace('from-emerald-500', 'from-slate-700');
+                btn.classList.replace('to-teal-600', 'to-slate-800');
+
+                statusIndicator.innerText = "Round Result";
+                statusIndicator.className = "text-xs uppercase font-extrabold tracking-widest text-amber-400 mb-1";
+
+                // Calculate statistics
+                const numericVotes = state.players
+                    .map(p => parseFloat(p.vote))
+                    .filter(v => !isNaN(v));
+
+                if (numericVotes.length > 0) {
+                    const sum = numericVotes.reduce((a, b) => a + b, 0);
+                    const avg = (sum / numericVotes.length).toFixed(1);
+
+                    document.getElementById('avg-score-display').innerText = avg;
+                    consensusView.classList.remove('hidden');
+                    subStatusDesc.innerText = `Computed from ${numericVotes.length} team votes`;
+
+                    // Confetti explosion for celebration!
+                    confetti({
+                        particleCount: 80,
+                        spread: 70,
+                        origin: { y: 0.6 }
+                    });
+
+                    logActivity(`Round revealed! Average estimate: ${avg} points.`);
+                    renderDistributionChart(numericVotes);
+                }
+
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-eye"></i> Reveal Cards`;
+                btn.classList.replace('from-slate-700', 'from-emerald-500');
+                btn.classList.replace('to-slate-800', 'to-teal-600');
+
+                statusIndicator.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Voting In Progress`;
+                statusIndicator.className = "text-xs uppercase font-extrabold tracking-widest text-emerald-400 mb-1";
+                consensusView.classList.add('hidden');
+                subStatusDesc.innerText = "Select an estimation card from your bottom dock";
+            }
+
+            renderSeats();
+        }
+
+        function resetRound() {
+            state.revealed = false;
+            state.myVote = null;
+            state.players.forEach(p => p.vote = null);
+
+            const btn = document.getElementById('btn-reveal');
+            btn.innerHTML = `<i class="fa-solid fa-eye"></i> Reveal Cards`;
+
+            document.getElementById('voting-status-indicator').innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Voting In Progress`;
+            document.getElementById('voting-status-indicator').className = "text-xs uppercase font-extrabold tracking-widest text-emerald-400 mb-1";
+            document.getElementById('consensus-result-view').classList.add('hidden');
+            document.getElementById('sub-status-desc').innerText = "Select an estimation card from your bottom dock";
+
+            renderDeck();
+            renderSeats();
+            showToast("Round reset for current story.");
+            logActivity("Round reset.");
+        }
+
+        // --- OFFICE WARFARE THROWING ENGINE ---
+        function selectWeapon(type) {
+            state.selectedWeapon = type;
+            updateWeaponDockUI();
+            showToast(`Selected weapon: ${type.toUpperCase()}`);
+        }
+
+        function updateWeaponDockUI() {
+            const list = ['airplane', 'paperball', 'coffee', 'gum', 'tomato'];
+            list.forEach(w => {
+                const btn = document.getElementById(`wpn-${w}`);
+                if (w === state.selectedWeapon) {
+                    btn.className = "weapon-btn p-2.5 rounded-xl bg-amber-500 text-slate-950 border border-amber-300 font-bold transition active:scale-95 shadow-lg shadow-amber-950";
+                } else {
+                    btn.className = "weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 relative group flex items-center gap-1.5";
+                }
+            });
+        }
+
+        function targetPlayerForThrow(targetId) {
+            const me = state.players.find(p => p.isMe);
+            if (!me) return;
+
+            if (targetId === me.id) {
+                showToast("You can't throw items at yourself! 😅");
+                return;
+            }
+
+            executeThrow(me.id, targetId, state.selectedWeapon);
+        }
+
+        function executeThrow(fromId, toId, weaponType) {
+            const fromSeat = document.getElementById(`seat-${fromId}`);
+            const toSeat = document.getElementById(`seat-${toId}`);
+
+            if (!fromSeat || !toSeat) return;
+
+            const fromRect = fromSeat.getBoundingClientRect();
+            const toRect = toSeat.getBoundingClientRect();
+
+            const startX = fromRect.left + fromRect.width / 2;
+            const startY = fromRect.top + fromRect.height / 2;
+            const endX = toRect.left + toRect.width / 2;
+            const endY = toRect.top + toRect.height / 2;
+
+            // Spawn projectile element
+            const proj = document.createElement('div');
+            proj.className = 'projectile-element';
+
+            const weaponIcons = {
+                airplane: '✈️',
+                paperball: '📄',
+                coffee: '☕',
+                gum: '🍬',
+                tomato: '🍅'
+            };
+
+            proj.innerText = weaponIcons[weaponType] || '✈️';
+            document.getElementById('projectile-layer').appendChild(proj);
+
+            synth.playWhoosh();
+
+            // Bezier arc trajectory
+            const duration = 550; // ms
+            const startTime = performance.now();
+            const arcHeight = -130;
+
+            function animateArc(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                const curX = startX + (endX - startX) * progress;
+                const linearY = startY + (endY - startY) * progress;
+                const curY = linearY + arcHeight * 4 * progress * (1 - progress);
+
+                const rotation = progress * 720;
+
+                proj.style.left = `${curX}px`;
+                proj.style.top = `${curY}px`;
+                proj.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${1 + progress * 0.2})`;
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateArc);
+                } else {
+                    proj.remove();
+                    triggerHitImpact(toId, weaponType);
+                }
+            }
+
+            requestAnimationFrame(animateArc);
+        }
+
+        function triggerHitImpact(targetId, weaponType) {
+            synth.playImpact();
+
+            const targetPlayer = state.players.find(p => p.id === targetId);
+            const seatEl = document.getElementById(`seat-${targetId}`);
+
+            if (seatEl) {
+                seatEl.classList.add('hit-impact');
+                setTimeout(() => seatEl.classList.remove('hit-impact'), 500);
+            }
+
+            if (targetPlayer) {
+                const icons = { airplane: '🩹', paperball: '💥', coffee: '☕', gum: '🍬', tomato: '🍅' };
+                targetPlayer.splats.push({
+                    icon: icons[weaponType] || '💥',
+                    x: Math.floor(Math.random() * 50) + 25,
+                    y: Math.floor(Math.random() * 50) + 25
+                });
+
+                if (targetPlayer.splats.length > 5) targetPlayer.splats.shift();
+
+                renderSeats();
+                logActivity(`You hit ${targetPlayer.name} with a ${weaponType.toUpperCase()}!`);
+            }
+        }
+
+        // --- BACKLOG QUEUE & NAVIGATION ---
+        function renderBacklog() {
+            const container = document.getElementById('backlog-items-container');
+            container.innerHTML = '';
+
+            state.backlog.forEach((item, index) => {
+                const isActive = index === state.currentStoryIdx;
+                const div = document.createElement('div');
+                div.className = `p-3 rounded-xl border transition cursor-pointer ${
+                    isActive 
+                        ? 'bg-emerald-950/60 border-emerald-500/50 text-white' 
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`;
+                div.onclick = () => selectStory(index);
+                div.innerHTML = `
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="code-font text-[10px] font-bold text-blue-400 bg-blue-950/80 px-1.5 py-0.5 rounded border border-blue-800/60">${item.id}</span>
+                        <span class="text-[10px] text-slate-500">${item.points ? item.points + ' pts' : 'Unestimated'}</span>
+                    </div>
+                    <div class="text-xs font-bold truncate">${item.title}</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function selectStory(idx) {
+            state.currentStoryIdx = idx;
+            renderStoryHeader();
+            renderBacklog();
+            resetRound();
+            logActivity(`Switched active story to #${state.backlog[idx].id}`);
+        }
+
+        function nextStory() {
+            if (state.currentStoryIdx < state.backlog.length - 1) {
+                selectStory(state.currentStoryIdx + 1);
+            }
+        }
+
+        function previousStory() {
+            if (state.currentStoryIdx > 0) {
+                selectStory(state.currentStoryIdx - 1);
+            }
+        }
+
+        // --- SIDEBAR TABS & LOGS ---
+        function switchSidebarTab(tab) {
+            ['activity', 'backlog', 'stats'].forEach(t => {
+                const btn = document.getElementById(`tab-btn-${t}`);
+                const content = document.getElementById(`tab-content-${t}`);
+                if (t === tab) {
+                    btn.className = "text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition";
+                    content.classList.remove('hidden');
+                } else {
+                    btn.className = "text-xs font-bold px-3 py-1.5 rounded-xl text-slate-400 hover:text-slate-200 transition";
+                    content.classList.add('hidden');
+                }
+            });
+        }
+
+        function logActivity(msg) {
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            state.activityLogs.unshift({ time, msg });
+            if (state.activityLogs.length > 20) state.activityLogs.pop();
+
+            const container = document.getElementById('activity-log-list');
+            if (container) {
+                container.innerHTML = state.activityLogs.map(l => `
+                    <div class="text-[11px] bg-slate-900/60 p-2 rounded-lg border border-slate-800 flex items-start gap-2">
+                        <span class="code-font text-[9px] text-slate-500 mt-0.5">${l.time}</span>
+                        <span class="text-slate-300 font-medium">${l.msg}</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function renderDistributionChart(votes) {
+            const counts = {};
+            votes.forEach(v => counts[v] = (counts[v] || 0) + 1);
+
+            const container = document.getElementById('distribution-chart-container');
+            container.innerHTML = Object.keys(counts).map(val => {
+                const cnt = counts[val];
+                const pct = Math.round((cnt / votes.length) * 100);
+                return `
+                    <div>
+                        <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-1">
+                            <span>${val} Points</span>
+                            <span>${cnt} votes (${pct}%)</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                            <div class="h-full bg-emerald-500 rounded-full" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- UTILITY MODALS & TOASTS ---
+        function toggleSound() {
+            state.soundEnabled = !state.soundEnabled;
+            const btn = document.getElementById('btn-sound');
+            btn.innerHTML = state.soundEnabled 
+                ? `<i class="fa-solid fa-volume-high text-xs"></i>` 
+                : `<i class="fa-solid fa-volume-xmark text-xs text-rose-400"></i>`;
+            showToast(state.soundEnabled ? "Audio FX enabled" : "Audio FX muted");
+        }
+
+        function copyInviteLink() {
+            const dummy = document.createElement('input');
+            document.body.appendChild(dummy);
+            dummy.value = window.location.href;
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+            showToast("Room link copied to clipboard!");
+        }
+
+        function openEditStoryModal() {
+            const current = state.backlog[state.currentStoryIdx];
+            document.getElementById('input-story-id').value = current.id;
+            document.getElementById('input-story-title').value = current.title;
+            document.getElementById('modal-edit-story').classList.remove('hidden');
+        }
+
+        function closeEditStoryModal() {
+            document.getElementById('modal-edit-story').classList.add('hidden');
+        }
+
+        function saveStoryEdits() {
+            const idVal = document.getElementById('input-story-id').value.trim();
+            const titleVal = document.getElementById('input-story-title').value.trim();
+
+            if (idVal && titleVal) {
+                state.backlog[state.currentStoryIdx].id = idVal;
+                state.backlog[state.currentStoryIdx].title = titleVal;
+                renderStoryHeader();
+                renderBacklog();
+                closeEditStoryModal();
+                showToast("Story updated successfully!");
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            toast.classList.remove('translate-x-full');
+            setTimeout(() => {
+                toast.classList.add('translate-x-full');
+            }, 2600);
+        }
+    </script>
+
+<script id="ponto-step2-bootstrap">
+
+(function () {
+  "use strict";
+  if (window.__pontoEntryStep2) return;
+  window.__pontoEntryStep2 = true;
+  const KEY = "ponto.entry.step2.profile.v1";
+  let profile = null, selected = 0, binding = false, host, shadow, pill, observer;
+  const presets = [
+    {name:"Dev do café", skin:"#d79a6d", hair:"#272332", eyes:"#4a342a", cut:"waves", shirt:"#7567f4", accessory:"glasses"},
+    {name:"DJ do deploy", skin:"#75452f", hair:"#221e29", eyes:"#2f2220", cut:"afro", shirt:"#31b6a5", accessory:"headphones"},
+    {name:"Capitã do backlog", skin:"#f0c4a3", hair:"#b14b3c", eyes:"#476d5b", cut:"long", shirt:"#e9a856", accessory:"earrings"},
+    {name:"Caçador de bugs", skin:"#a86b47", hair:"#24252b", eyes:"#453026", cut:"short", shirt:"#4f86d9", accessory:"glasses"},
+    {name:"Artista do UX", skin:"#c58c6d", hair:"#e3d6b8", eyes:"#647f9d", cut:"waves", shirt:"#c878b5", accessory:"earrings"},
+    {name:"Streamer da sprint", skin:"#f2d3b3", hair:"#7c5ac4", eyes:"#55472d", cut:"short", shirt:"#6d76eb", accessory:"headphones"},
+    {name:"Mestre do merge", skin:"#543525", hair:"#1e2026", eyes:"#352a25", cut:"short", shirt:"#d79554", accessory:"none"},
+    {name:"Exploradora de ideias", skin:"#bd7b58", hair:"#312331", eyes:"#3d5d55", cut:"long", shirt:"#559b87", accessory:"glasses"},
+    {name:"Guardião do release", skin:"#edb98f", hair:"#40312a", eyes:"#59758b", cut:"waves", shirt:"#bb6b63", accessory:"headphones"},
+    {name:"Cientista do código", skin:"#814e35", hair:"#231f28", eyes:"#42342a", cut:"afro", shirt:"#73996d", accessory:"glasses"},
+    {name:"Skater do produto", skin:"#dca67f", hair:"#98663f", eyes:"#50745c", cut:"short", shirt:"#5d94b6", accessory:"none"},
+    {name:"Lenda do planning", skin:"#f3d2b7", hair:"#292531", eyes:"#615071", cut:"long", shirt:"#a27ccb", accessory:"earrings"}
+  ];
+  let appearance = Object.assign({}, presets[0]);
+  const paletteSkin = ["#f3d2b7","#edb98f","#d79a6d","#bd7b58","#a86b47","#814e35","#543525"];
+  function safe(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+  function avatar(p) {
+    const skin=p.skin, hair=p.hair, shirt=p.shirt, eye=p.eyes;
+    let back = "", front = "";
+    if (p.cut === "long") {
+      back = '<path d="M30 60C24 17 96 10 99 57L105 108H24Z" fill="'+hair+'"/>';
+      front = '<path d="M34 52C30 20 83 15 96 48C78 48 69 36 65 30C61 44 48 48 34 52Z" fill="'+hair+'"/>';
+    } else if (p.cut === "afro") {
+      back = '<g fill="'+hair+'"><circle cx="40" cy="35" r="17"/><circle cx="58" cy="24" r="18"/><circle cx="78" cy="27" r="18"/><circle cx="92" cy="43" r="15"/><circle cx="33" cy="51" r="13"/></g>';
+      front = '<path d="M35 45Q36 24 66 25Q90 27 94 47L82 40L72 43L62 38L50 43Z" fill="'+hair+'"/>';
+    } else if (p.cut === "waves") {
+      front = '<path d="M33 54C25 38 37 21 49 21C55 7 75 18 77 21C97 18 102 40 94 52L85 40Q74 42 69 30Q62 44 36 44Z" fill="'+hair+'"/><path d="M48 28Q66 20 80 28" stroke="#fff" stroke-opacity=".13" stroke-width="4" fill="none" stroke-linecap="round"/>';
+    } else {
+      front = '<path d="M33 53L31 38Q34 17 64 18Q95 17 96 41L93 53L85 38Q62 46 41 36L40 52Z" fill="'+hair+'"/><path d="M41 29Q60 22 78 28" fill="none" stroke="#fff" stroke-opacity=".12" stroke-width="4" stroke-linecap="round"/>';
+    }
+    const headphones = p.accessory === "headphones"
+      ? '<path d="M27 65V48C27 5 101 5 101 48V65" stroke="#262839" stroke-width="7" fill="none"/><rect x="23" y="48" width="12" height="28" rx="6" fill="#34364d"/><rect x="94" y="48" width="12" height="28" rx="6" fill="#34364d"/><rect x="25" y="53" width="5" height="17" rx="2.5" fill="'+shirt+'"/><rect x="99" y="53" width="5" height="17" rx="2.5" fill="'+shirt+'"/>'
+      : "";
+    const glasses = p.accessory === "glasses"
+      ? '<g fill="none" stroke="#302e40" stroke-width="2.8"><rect x="40" y="50" width="20" height="16" rx="6"/><rect x="69" y="50" width="20" height="16" rx="6"/><path d="M60 56Q65 52 69 56M34 54H40M89 54H95"/></g>'
+      : "";
+    const earrings = p.accessory === "earrings"
+      ? '<g stroke="#f8ce73" stroke-width="3" fill="none"><circle cx="32" cy="71" r="4"/><circle cx="96" cy="71" r="4"/></g>'
+      : "";
+    return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Avatar moderno">'+
+      '<defs><linearGradient id="bg" x2="1" y2="1"><stop stop-color="'+shirt+'" stop-opacity=".22"/><stop offset="1" stop-color="'+shirt+'" stop-opacity=".55"/></linearGradient><clipPath id="clip"><circle cx="64" cy="64" r="63"/></clipPath></defs>'+
+      '<g clip-path="url(#clip)"><rect width="128" height="128" fill="#e9e8f0"/><rect width="128" height="128" fill="url(#bg)"/><circle cx="99" cy="21" r="27" fill="#fff" opacity=".18"/>'+back+
+      '<path d="M12 132Q12 96 47 90H81Q115 95 116 132Z" fill="'+shirt+'"/><path d="M47 93Q63 109 81 93L78 84H50Z" fill="'+skin+'"/><path d="M51 87Q65 94 78 85V94Q64 101 51 92Z" fill="#412c35" opacity=".11"/>'+
+      '<ellipse cx="34" cy="61" rx="6" ry="10" fill="'+skin+'"/><ellipse cx="94" cy="61" rx="6" ry="10" fill="'+skin+'"/><path d="M36 43Q39 21 65 24Q92 26 93 49L90 72Q85 90 65 93Q45 90 38 72Z" fill="'+skin+'"/>'+
+      '<ellipse cx="46" cy="68" rx="7" ry="4" fill="#e78080" opacity=".18"/><ellipse cx="83" cy="68" rx="7" ry="4" fill="#e78080" opacity=".18"/>'+
+      '<path d="M44 48Q50 45 55 48M74 48Q80 44 85 48" fill="none" stroke="'+hair+'" stroke-width="2.6" stroke-linecap="round"/>'+
+      '<ellipse cx="50" cy="57" rx="3" ry="3.8" fill="'+eye+'"/><ellipse cx="79" cy="57" rx="3" ry="3.8" fill="'+eye+'"/><circle cx="51" cy="56" r=".9" fill="#fff"/><circle cx="80" cy="56" r=".9" fill="#fff"/>'+
+      '<path d="M64 59L61 68H66" fill="none" stroke="#49313a" stroke-opacity=".25" stroke-width="2" stroke-linecap="round"/><path d="M54 75Q64 84 75 74" fill="#fff" stroke="#78504d" stroke-width="1.4" stroke-linejoin="round"/>'+
+      front+glasses+earrings+headphones+
+      '<path d="M41 101L51 113M87 101L77 113" stroke="#fff" stroke-opacity=".2" stroke-width="3" stroke-linecap="round"/><path d="M61 108H68V128H61Z" fill="#fff" opacity=".07"/></g></svg>';
+  }
+  function avatarURL(p) { return "data:image/svg+xml;charset=utf-8,"+encodeURIComponent(avatar(p)); }
+  function readProfile() { try { return JSON.parse(sessionStorage.getItem(KEY) || "null"); } catch(e) { return null; } }
+  function storeProfile() { try { sessionStorage.setItem(KEY, JSON.stringify(profile)); } catch(e) {} }
+  function notice(text) {
+    const t = document.createElement("div");
+    Object.assign(t.style,{position:"fixed",bottom:"88px",right:"20px",maxWidth:"320px",padding:"12px 16px",background:"#172332",color:"#f2f5fa",border:"1px solid #526174",borderRadius:"12px",font:"13px/1.5 system-ui",zIndex:"2147483647",boxShadow:"0 12px 35px #0006"});
+    t.textContent=text; document.body.appendChild(t); setTimeout(()=>t.remove(),5000);
+  }
+  function ownLabel(root) {
+    return Array.from(root.querySelectorAll("span,p,small,strong,b,label,div")).find(el=>el.children.length===0 && /^(you|você|voce|you\s*\(host\)|você\s*\(host\))$/i.test(el.textContent.trim()));
+  }
+  function findSelf() {
+    const tagged=document.querySelector('[data-ponto-self="true"]');
+    if(tagged) return tagged;
+    const explicit=document.querySelector('[data-is-you="true"],[data-player-id="you"],[data-player-id="self"],[data-user-id="me"],.player-seat.is-you,.player.you');
+    if(explicit && explicit.querySelector("img")) return explicit;
+    const text=ownLabel(document.body);
+    if(!text) return null;
+    let parent=text.parentElement;
+    for(let i=0;parent && i<5;i++,parent=parent.parentElement){
+      if(parent===document.body) break;
+      const box=parent.getBoundingClientRect();
+      if(parent.querySelector("img") && box.width<=300 && box.height<=330) return parent;
+    }
+    return null;
+  }
+  function applyProfile(quiet) {
+    if(!profile) return false;
+    const seat=findSelf();
+    if(!seat) { if(!quiet) notice("Perfil criado. Use “Vincular” e clique no avatar que representa você."); return false; }
+    seat.dataset.pontoSelf="true";
+    const img=seat.querySelector("img");
+    if(img) {
+      const url=avatarURL(profile.appearance);
+      if(img.getAttribute("src")!==url) img.setAttribute("src",url);
+      if(img.hasAttribute("srcset")) img.removeAttribute("srcset");
+      if(img.alt!==profile.name) img.alt=profile.name;
+      if(img.style.imageRendering!=="auto") img.style.imageRendering="auto";
+    }
+    let label=ownLabel(seat) || seat.querySelector('[data-ponto-self-name="true"]');
+    if(label) {
+      label.dataset.pontoSelfName="true";
+      if(label.textContent!==profile.name) label.textContent=profile.name;
+    }
+    return true;
+  }
+  function updatePill() {
+    if(pill) pill.remove();
+    if(!profile) return;
+    pill=document.createElement("div");
+    pill.style.cssText="position:fixed;bottom:16px;right:18px;z-index:2147483640;font-family:system-ui;color:#eef3fa;box-sizing:border-box";
+    const root=pill.attachShadow({mode:"open"});
+    root.innerHTML='<style>*{box-sizing:border-box}.bar{display:flex;align-items:center;gap:8px;padding:7px 9px;background:#17212ef5;border:1px solid #465268;border-radius:40px;box-shadow:0 7px 24px #0005}img{height:34px;width:34px;border-radius:50%}.name{max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:12px;font-weight:650}small{display:block;color:#9faebf;font-size:10px;font-weight:400}button{border:0;background:transparent;color:#dce5f3;cursor:pointer;font:12px system-ui;padding:6px;border-radius:6px}button:hover{background:#ffffff14}button:focus-visible{outline:2px solid #aebdff}</style>'+
+      '<div class="bar"><img alt="" src="'+safe(avatarURL(profile.appearance))+'"><span class="name">'+safe(profile.name)+'<small>Perfil local</small></span><button id="edit">Editar</button><button id="bind">Vincular</button><button id="exit" aria-label="Sair do perfil local">Sair</button></div>';
+    root.getElementById("edit").onclick=()=>openForm();
+    root.getElementById("bind").onclick=()=> {
+      binding=true;
+      notice("Clique no avatar da mesa que representa você. Esc cancela.");
+    };
+    root.getElementById("exit").onclick=()=>{
+      profile=null; try {sessionStorage.removeItem(KEY);}catch(e){}
+      pill.remove();pill=null;openForm();
+    };
+    document.body.appendChild(pill);
+  }
+  function fillCards() {
+    shadow.getElementById("characters").innerHTML=presets.map((p,i)=>
+      '<button type="button" class="character '+(selected===i?"chosen":"")+'" data-preset="'+i+'" aria-pressed="'+(selected===i)+'">'+avatar(p)+'<span>'+safe(p.name)+'</span></button>'
+    ).join("");
+    shadow.querySelectorAll("[data-preset]").forEach(b=>b.onclick=()=>{
+      selected=Number(b.dataset.preset);appearance=Object.assign({},presets[selected]);fillCards();updateControls();updatePreview();
+    });
+  }
+  function updateControls() {
+    shadow.getElementById("skin").innerHTML=paletteSkin.map(t=>'<button type="button" class="tone '+(appearance.skin===t?"chosen":"")+'" data-tone="'+t+'" aria-label="Tom de pele '+t+'" aria-pressed="'+(appearance.skin===t)+'" style="--tone:'+t+'"></button>').join("");
+    shadow.querySelectorAll("[data-tone]").forEach(b=>b.onclick=()=>{
+      appearance.skin=b.dataset.tone;updateControls();updatePreview();
+    });
+    ["cut","accessory","hair","eyes"].forEach(key=>{shadow.getElementById(key).value=appearance[key];});
+  }
+  function updatePreview() {
+    const name=shadow.getElementById("name").value.trim() || "Seu personagem";
+    shadow.getElementById("avatarPreview").innerHTML=avatar(appearance);
+    shadow.getElementById("namePreview").textContent=name;
+  }
+  function closeForm() {
+    if(!profile) return;
+    host.remove();host=null;shadow=null;updatePill();
+  }
+  function openForm() {
+    if(host) return;
+    if(profile){appearance=Object.assign({},profile.appearance);selected=profile.preset||0;}
+    host=document.createElement("div");
+    host.setAttribute("id","ponto-entry-host-step2");
+    host.style.cssText="position:fixed;inset:0;display:block;z-index:2147483646";
+    shadow=host.attachShadow({mode:"open"});
+    shadow.innerHTML=`
+      <style>
+      :host{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#edf1f7}*{box-sizing:border-box}
+      .overlay{position:fixed;inset:0;overflow:auto;padding:32px 16px;background:#07101de3;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(7px)}
+      .dialog{width:min(850px,100%);background:#17212e;border:1px solid #344357;border-radius:22px;box-shadow:0 30px 100px #0008;overflow:hidden}
+      header{padding:24px 28px 18px;border-bottom:1px solid #344052;display:flex;align-items:start;justify-content:space-between}
+      h1{margin:4px 0 6px;font-size:24px;letter-spacing:-.6px}p{margin:0;color:#abb6c7;line-height:1.6;font-size:13px}.tag{color:#c5a661;text-transform:uppercase;font-size:10px;font-weight:750;letter-spacing:1.8px}
+      .content{display:grid;grid-template-columns:225px 1fr;gap:26px;padding:24px 28px}
+      .identity{display:flex;align-items:center;flex-direction:column;padding:18px 15px;border-radius:16px;background:#101925;border:1px solid #2a394c}
+      #avatarPreview{width:138px;height:138px;flex-shrink:0}svg{display:block;width:100%;height:100%}
+      #namePreview{margin:12px 0 3px;font-size:17px;max-width:100%;overflow-wrap:anywhere;text-align:center}.hint{font-size:11px;text-align:center;line-height:1.6;color:#91a2b7}
+      label,.label{font-size:12px;font-weight:650;display:block;color:#d5dfec;margin:0 0 8px}
+      input,select{width:100%;border:1px solid #425169;background:#101925;color:#eef2fa;border-radius:9px;padding:11px 12px;font:14px system-ui}
+      input:focus,select:focus{outline:2px solid #a592ef;outline-offset:2px}button{font-family:inherit;cursor:pointer}
+      .field{margin-bottom:18px}.characters{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}.character{background:#1c2939;border:1px solid #3a485d;border-radius:12px;padding:8px 5px;color:#bfcddd;display:flex;align-items:center;flex-direction:column;gap:6px;min-width:0}
+      .character svg{width:49px;height:49px;flex-shrink:0}.character span{font-size:9px;line-height:1.35;min-height:25px;text-align:center}.character:hover{border-color:#9680d9}.chosen{outline:2px solid #b9a0fa;outline-offset:1px;background:#342d4e}
+      .skin{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 14px}.tone{width:25px;height:25px;border:2px solid #f0e2d32e;border-radius:50%;background:var(--tone)}
+      .options{display:grid;grid-template-columns:1fr 1fr;gap:12px}.options label{font-size:11px}.options select{font-size:12px;padding:9px 8px}
+      .identity .local{margin-top:auto;padding-top:22px;font-size:10px;color:#91a2b7;line-height:1.6;text-align:center}
+      footer{padding:18px 28px;border-top:1px solid #344052;display:flex;gap:16px;align-items:center;justify-content:space-between}
+      footer p{font-size:11px;max-width:465px}.join{background:#dec078;color:#20242b;font-size:13px;font-weight:750;min-width:154px;border:0;border-radius:10px;padding:13px 20px}
+      .join:hover{background:#f0d599}.close{border:0;color:#adb9cc;background:transparent;font-size:23px;padding:0 5px}
+      button:focus-visible{outline:2px solid #c5acff;outline-offset:3px}
+      @media(max-width:650px){.overlay{align-items:flex-start;padding:12px}.content{grid-template-columns:1fr;padding:18px;gap:20px}.identity{display:none}header{padding:20px 18px}h1{font-size:21px}footer{padding:16px 18px;flex-direction:column;align-items:stretch}.join{width:100%}.characters{grid-template-columns:repeat(4,1fr)}}
+      @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+      </style>
+      <div class="overlay"><section class="dialog" role="dialog" aria-modal="true" aria-labelledby="entryTitle">
+        <header><div><span class="tag">Entrada na sala · etapa 2</span><h1 id="entryTitle">Quem chega à mesa?</h1><p>Escolha um nome e um personagem. A mesa continua igual.</p></div><button type="button" class="close" id="close" aria-label="Fechar">×</button></header>
+        <form id="entryForm">
+          <div class="content">
+            <aside class="identity"><div id="avatarPreview"></div><strong id="namePreview"></strong><span class="hint">Seu novo visual na mesa</span><div class="local">Prévia local, sem conexão entre dispositivos.<br>Os outros participantes não são alterados.</div></aside>
+            <div>
+              <div class="field"><label for="name">Seu nome ou apelido</label><input id="name" type="text" autocomplete="nickname" maxlength="32" placeholder="Como o time chama você?" required></div>
+              <div class="field"><span class="label">Escolha seu personagem</span><div class="characters" id="characters"></div></div>
+              <span class="label">Tom de pele</span><div class="skin" id="skin"></div>
+              <div class="options">
+                <div><label for="cut">Cabelo</label><select id="cut"><option value="short">Curto</option><option value="waves">Ondulado</option><option value="long">Longo</option><option value="afro">Afro</option></select></div>
+                <div><label for="accessory">Acessório</label><select id="accessory"><option value="none">Sem acessório</option><option value="glasses">Óculos</option><option value="headphones">Headset</option><option value="earrings">Brincos</option></select></div>
+                <div><label for="hair">Cor do cabelo</label><select id="hair"><option value="#272332">Preto</option><option value="#221e29">Preto intenso</option><option value="#24252b">Grafite</option><option value="#40312a">Castanho</option><option value="#98663f">Castanho claro</option><option value="#b14b3c">Ruivo</option><option value="#e3d6b8">Loiro</option><option value="#7c5ac4">Lilás</option><option value="#312331">Castanho escuro</option><option value="#1e2026">Preto suave</option><option value="#231f28">Preto azulado</option><option value="#292531">Ameixa escuro</option></select></div>
+                <div><label for="eyes">Cor dos olhos</label><select id="eyes"><option value="#4a342a">Castanhos</option><option value="#2f2220">Castanhos escuros</option><option value="#476d5b">Verdes</option><option value="#453026">Mel escuro</option><option value="#647f9d">Azuis</option><option value="#55472d">Mel</option><option value="#352a25">Chocolate</option><option value="#3d5d55">Verde escuro</option><option value="#59758b">Azul acinzentado</option><option value="#42342a">Castanhos médios</option><option value="#50745c">Verde oliva</option><option value="#615071">Violetas</option></select></div>
+              </div>
+            </div>
+          </div>
+          <footer><p>Esta entrada cria um perfil apenas neste navegador. Ainda não é uma sala multiusuário em tempo real.</p><button class="join" type="submit">Entrar na mesa →</button></footer>
+        </form>
+      </section></div>`;
+    document.body.appendChild(host);
+    fillCards();updateControls();
+    const input=shadow.getElementById("name");
+    input.value=profile?profile.name:"";
+    input.oninput=updatePreview;
+    ["cut","accessory","hair","eyes"].forEach(key=>shadow.getElementById(key).onchange=e=>{appearance[key]=e.target.value;updatePreview();});
+    shadow.getElementById("close").onclick=()=>{
+      if(profile)closeForm();
+      else {host.remove();host=null;shadow=null;notice("Entrada adiada. Recarregue a página para abrir novamente.");}
+    };
+    shadow.getElementById("entryForm").onsubmit=e=>{
+      e.preventDefault();
+      const name=input.value.trim();
+      if(!name){input.setCustomValidity("Digite seu nome para entrar.");input.reportValidity();input.setCustomValidity("");return;}
+      profile={name,appearance:Object.assign({},appearance),preset:selected,localOnly:true};
+      storeProfile();closeForm();applyProfile(false);
+      document.dispatchEvent(new CustomEvent("pokerscrum:local-join",{detail:profile}));
+    };
+    updatePreview();setTimeout(()=>input.focus(),60);
+  }
+  function setup() {
+    profile=readProfile();
+    if(profile && profile.appearance && typeof profile.name==="string") {updatePill();applyProfile(true);}
+    else {profile=null;openForm();}
+    let queued=false;
+    observer=new MutationObserver(()=>{
+      if(!profile || queued)return;
+      queued=true;setTimeout(()=>{queued=false;applyProfile(true);},180);
+    });
+    observer.observe(document.body,{childList:true,subtree:true});
+    document.addEventListener("click",e=>{
+      if(!binding || !profile || (host && e.composedPath().includes(host)) || (pill && e.composedPath().includes(pill)))return;
+      const img=e.target.closest && e.target.closest("img");
+      if(!img)return;
+      e.preventDefault();e.stopImmediatePropagation();
+      let seat=img.parentElement;
+      for(let i=0;i<4 && seat && seat.parentElement;i++){
+        const next=seat.parentElement, box=next.getBoundingClientRect();
+        if(next===document.body || box.width>300 || box.height>330 || next.querySelectorAll("img").length>1)break;
+        seat=next;
+      }
+      document.querySelectorAll('[data-ponto-self="true"]').forEach(el=>delete el.dataset.pontoSelf);
+      seat.dataset.pontoSelf="true";
+      const text=ownLabel(seat);
+      if(text)text.dataset.pontoSelfName="true";
+      else {
+        const leaves=Array.from(seat.querySelectorAll("span,p,strong,small")).filter(el=>el.children.length===0 && el.textContent.trim().length>0 && el.textContent.trim().length<40);
+        const candidate=leaves.find(el=>!/^(scrum master|developer|dev|host|pm|po|voted|votou|ready)$/i.test(el.textContent.trim()));
+        if(candidate)candidate.dataset.pontoSelfName="true";
+      }
+      binding=false;applyProfile(true);notice("Perfil vinculado ao avatar escolhido, somente neste navegador.");
+    },true);
+    document.addEventListener("keydown",e=>{if(e.key==="Escape"){binding=false;if(host && profile)closeForm();}});
+  }
+  if(document.readyState==="loading")document.addEventListener("DOMContentLoaded",setup,{once:true});else setup();
+})();
+
+</script>
+</body>
+</html>

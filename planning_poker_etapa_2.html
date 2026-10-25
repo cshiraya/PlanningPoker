@@ -1,0 +1,1405 @@
+	<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PokerScrum ♠️ - Gamified Planning Poker for Agile Teams</title>
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        poker: {
+                            felt: '#154334',
+                            feltDark: '#0b261d',
+                            leather: '#2b1810',
+                            gold: '#d4af37',
+                            goldHover: '#f3c63f',
+                            cardBg: '#1e293b'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@500;700;800&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <!-- Canvas Confetti Library -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+
+    <style>
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: #090d16;
+            color: #f1f5f9;
+            overflow-x: hidden;
+            user-select: none;
+        }
+
+        .code-font {
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        /* Glassmorphism utility */
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.75);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .glass-card {
+            background: rgba(30, 41, 59, 0.6);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* 3D Poker Felt Table Styling */
+        .poker-table-felt {
+            background: radial-gradient(ellipse at center, #1e5a46 0%, #11382b 65%, #081d16 100%);
+            box-shadow: inset 0 0 100px rgba(0, 0, 0, 0.95), 0 25px 60px rgba(0, 0, 0, 0.8);
+            border: 16px solid #2a160d;
+            outline: 3px solid #d4af37;
+            outline-offset: -3px;
+        }
+
+        /* 3D Flip Card Effect */
+        .card-3d {
+            perspective: 1000px;
+        }
+
+        .card-inner {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            transition: transform 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            transform-style: preserve-3d;
+        }
+
+        .card-flipped .card-inner {
+            transform: rotateY(180deg);
+        }
+
+        .card-face-front, .card-face-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            border-radius: 0.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .card-face-back {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 2px solid #3b82f6;
+            background-image: repeating-linear-gradient(45deg, rgba(59, 130, 246, 0.1) 0, rgba(59, 130, 246, 0.1) 8px, transparent 0, transparent 16px);
+        }
+
+        .card-face-front {
+            background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
+            color: #0f172a;
+            transform: rotateY(180deg);
+            border: 2px solid #38bdf8;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.3);
+        }
+
+        /* Projectile Animation */
+        .projectile-element {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            font-size: 2.2rem;
+            filter: drop-shadow(0 12px 10px rgba(0,0,0,0.6));
+            transform-origin: center center;
+        }
+
+        /* Hit Shake Effect */
+        @keyframes avatarHitShake {
+            0% { transform: scale(1) rotate(0deg); }
+            20% { transform: scale(1.18) rotate(-12deg) translate(-8px, 4px); }
+            40% { transform: scale(0.9) rotate(10deg) translate(8px, -4px); }
+            60% { transform: scale(1.08) rotate(-6deg) translate(-4px, -2px); }
+            80% { transform: scale(0.98) rotate(3deg); }
+            100% { transform: scale(1) rotate(0deg); }
+        }
+
+        .hit-impact {
+            animation: avatarHitShake 0.5s ease-out;
+        }
+
+        /* Splat Stain Pop-in */
+        @keyframes splatPop {
+            0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+            80% { transform: scale(1.2) rotate(10deg); opacity: 0.9; }
+            100% { transform: scale(1) rotate(0deg); opacity: 1; }
+        }
+
+        .splat-stain {
+            animation: splatPop 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
+        /* Pulsing Voted Ring */
+        @keyframes pulseGlow {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.6); }
+            50% { box-shadow: 0 0 0 10px rgba(16, 185, 129, 0); }
+        }
+
+        .voted-ring {
+            animation: pulseGlow 2s infinite;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #475569;
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between bg-slate-950 text-slate-100">
+
+    <!-- Container layer for airborne thrown items -->
+    <div id="projectile-layer"></div>
+
+    <!-- Global Toast Alert -->
+    <div id="toast" class="fixed top-5 right-5 z-50 transform translate-x-full transition-transform duration-300 glass-panel border border-emerald-500/30 text-white px-4 py-3 rounded-xl shadow-2xl flex items-center gap-3 pointer-events-none">
+        <i id="toast-icon" class="fa-solid fa-circle-check text-emerald-400 text-lg"></i>
+        <span id="toast-message" class="text-xs font-semibold">Welcome to PokerScrum!</span>
+    </div>
+
+    <!-- ================= HEADER BAR ================= -->
+    <header class="w-full bg-slate-900/90 border-b border-slate-800/80 px-4 py-2 z-30 sticky top-0 backdrop-blur-lg">
+        <div class="max-w-[1600px] mx-auto flex flex-wrap items-center justify-between gap-3">
+            
+            <!-- Brand & Room Code -->
+            <div class="flex items-center gap-3">
+                <div class="flex items-center gap-2">
+                    <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-emerald-400 flex items-center justify-center text-slate-950 font-black text-xl shadow-lg shadow-emerald-900/50 border border-emerald-300/40">
+                        ♠️
+                    </div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <span class="text-base font-extrabold tracking-tight bg-gradient-to-r from-emerald-400 via-teal-300 to-amber-300 bg-clip-text text-transparent">PokerScrum</span>
+                            <span class="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md bg-emerald-950/80 border border-emerald-500/30 text-emerald-400">PRO</span>
+                        </div>
+                        <p class="text-[11px] text-slate-400 flex items-center gap-1.5">
+                            <span>Room:</span>
+                            <span class="code-font font-bold text-amber-400 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">#AGILE-2026</span>
+                            <button onclick="copyInviteLink()" class="hover:text-emerald-400 text-slate-400 transition" title="Copy Room Invite Link"><i class="fa-regular fa-copy"></i></button>
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Integrated Sponsor / Ad Banner (Header Slot 728x90 responsive) -->
+            <div class="hidden xl:flex items-center justify-center bg-slate-950/90 border border-amber-500/20 rounded-xl px-4 py-1.5 w-[600px] h-[52px] relative overflow-hidden group shadow-inner">
+                <div class="absolute top-1 right-2 text-[9px] uppercase font-bold text-slate-500 tracking-wider">Sponsor Ad</div>
+                <a href="#" onclick="showToast('Ad clicked: Redirecting to JetBrains Space...'); return false;" class="flex items-center gap-3 w-full">
+                    <div class="w-8 h-8 bg-purple-600 rounded-lg flex items-center justify-center text-white text-xs font-bold shadow-md flex-shrink-0">
+                        <i class="fa-solid fa-code"></i>
+                    </div>
+                    <div class="text-left flex-1 min-w-0">
+                        <div class="text-xs font-bold text-slate-200 truncate group-hover:text-amber-400 transition">JetBrains Space - All-in-one DevOps & Agile Tool</div>
+                        <div class="text-[10px] text-slate-400 truncate">Accelerate your sprint planning with seamless Jira & GitHub sync. Try free for 30 days!</div>
+                    </div>
+                    <span class="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 font-bold px-2 py-1 rounded-md group-hover:bg-amber-500 group-hover:text-slate-950 transition">Try Free</span>
+                </a>
+            </div>
+
+            <!-- Quick Controls -->
+            <div class="flex items-center gap-2">
+                <!-- Online Users Count -->
+                <div class="hidden sm:flex items-center gap-2 bg-slate-950 px-3 py-1.5 rounded-xl border border-slate-800">
+                    <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping"></span>
+                    <span class="text-xs font-bold text-slate-300"><span id="online-count">8</span> Online</span>
+                </div>
+
+                <!-- Audio Toggle -->
+                <button id="btn-sound" onclick="toggleSound()" class="w-9 h-9 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 flex items-center justify-center transition shadow-md" title="Toggle Sound FX">
+                    <i class="fa-solid fa-volume-high text-xs"></i>
+                </button>
+
+                <!-- Buy Me a Coffee Support Button -->
+                <a href="#" onclick="showToast('☕ Thank you for supporting PokerScrum development!'); return false;" class="flex items-center gap-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-extrabold text-xs px-3 py-2 rounded-xl shadow-lg shadow-amber-900/30 transition transform active:scale-95">
+                    <span>☕</span>
+                    <span class="hidden md:inline">Support Us</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- ================= MAIN LAYOUT ================= -->
+    <div class="flex-1 max-w-[1600px] w-full mx-auto p-3 md:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 relative">
+
+        <!-- LEFT & CENTER AREA: STORY BAR + POKER TABLE + WEAPONS (Grid col 8 or 9) -->
+        <section class="lg:col-span-8 xl:col-span-9 flex flex-col justify-between gap-4">
+            
+            <!-- STORY CARD BAR (ACTIVE JIRA/AZURE TICKET) -->
+            <div class="glass-panel rounded-2xl p-4 flex flex-wrap items-center justify-between gap-4 border-l-4 border-l-emerald-500 shadow-xl">
+                <div class="flex items-center gap-3 flex-1 min-w-[280px]">
+                    <div class="w-9 h-9 rounded-xl bg-blue-600/20 border border-blue-500/40 text-blue-400 flex items-center justify-center font-bold text-base">
+                        <i class="fa-brands fa-jira"></i>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center gap-2">
+                            <span class="code-font text-xs font-bold text-blue-400 bg-blue-950/80 px-2 py-0.5 rounded border border-blue-800/60" id="story-id">US-204</span>
+                            <span class="text-xs text-slate-400 font-semibold" id="story-sprint">Sprint 48 • Payment Engine</span>
+                        </div>
+                        <h2 class="text-sm md:text-base font-bold text-slate-100 mt-0.5" id="story-title">Implement OAuth2 & Social Login (Google / GitHub)</h2>
+                    </div>
+                </div>
+
+                <!-- Story Quick Controls -->
+                <div class="flex items-center gap-2">
+                    <button onclick="previousStory()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition" title="Previous Story"><i class="fa-solid fa-chevron-left"></i></button>
+                    <span class="text-xs font-bold code-font text-slate-400"><span id="current-story-idx">1</span>/<span id="total-stories-idx">4</span></span>
+                    <button onclick="nextStory()" class="p-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs border border-slate-700 transition" title="Next Story"><i class="fa-solid fa-chevron-right"></i></button>
+                    <button onclick="openEditStoryModal()" class="ml-2 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition flex items-center gap-1.5">
+                        <i class="fa-solid fa-pen text-[10px]"></i> Edit
+                    </button>
+                </div>
+            </div>
+
+            <!-- POKER TABLE CONTAINER -->
+            <div class="relative w-full h-[420px] md:h-[480px] flex items-center justify-center my-1">
+                
+                <!-- Oval Poker Felt Table -->
+                <div class="poker-table-felt w-[88%] md:w-[82%] h-[260px] md:h-[300px] rounded-[130px] md:rounded-[150px] relative flex flex-col items-center justify-center p-4">
+                    
+                    <!-- Table Inner Metallic Line -->
+                    <div class="absolute inset-3 border border-emerald-400/20 rounded-[120px] md:rounded-[140px] pointer-events-none"></div>
+
+                    <!-- Center Display: Status / Stats / Actions -->
+                    <div id="table-center-panel" class="z-10 text-center p-4 rounded-2xl glass-panel border border-emerald-500/30 max-w-xs md:max-w-sm w-full transition-all duration-300 shadow-2xl">
+                        
+                        <div id="voting-status-indicator" class="text-xs uppercase font-extrabold tracking-widest text-emerald-400 mb-1">
+                            <i class="fa-solid fa-spinner fa-spin mr-1"></i> Voting In Progress
+                        </div>
+
+                        <!-- Revealed Results View (Initially Hidden) -->
+                        <div id="consensus-result-view" class="hidden my-2">
+                            <div class="flex items-baseline justify-center gap-2">
+                                <span class="text-4xl font-extrabold text-white code-font" id="avg-score-display">5.0</span>
+                                <span class="text-xs text-amber-400 font-bold bg-amber-950/80 px-2 py-0.5 rounded border border-amber-800/60" id="consensus-badge">High Consensus</span>
+                            </div>
+                            <p class="text-[11px] text-slate-300 mt-1" id="consensus-stats">Most common: 5 (5 votes)</p>
+                        </div>
+
+                        <p class="text-[11px] text-slate-400 mb-3" id="sub-status-desc">Select an estimation card from your bottom dock</p>
+
+                        <!-- Primary Action Buttons -->
+                        <div class="flex items-center justify-center gap-2">
+                            <button id="btn-reveal" onclick="toggleRevealRound()" class="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 active:scale-95 text-slate-950 font-extrabold text-xs px-5 py-2.5 rounded-xl shadow-lg shadow-emerald-950/50 transition flex items-center gap-2 border border-emerald-300/40">
+                                <i class="fa-solid fa-eye"></i> Reveal Cards
+                            </button>
+                            <button onclick="resetRound()" class="bg-slate-800 hover:bg-slate-700 active:scale-95 text-slate-200 font-bold text-xs px-3.5 py-2.5 rounded-xl border border-slate-700 transition flex items-center gap-1.5">
+                                <i class="fa-solid fa-rotate-right text-[10px]"></i> Reset
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Watermark Logo in felt -->
+                    <div class="absolute inset-0 flex items-center justify-center opacity-5 pointer-events-none">
+                        <span class="text-9xl">♠️</span>
+                    </div>
+                </div>
+
+                <!-- SEATS LAYER (8 Players placed around table via JS) -->
+                <div id="seats-layer" class="absolute inset-0 pointer-events-none">
+                    <!-- Injected via JavaScript -->
+                </div>
+            </div>
+
+            <!-- OFFICE WARFARE FLOATING TOOLBAR ("THROWING ENGINE") -->
+            <div class="glass-panel rounded-2xl p-3 flex flex-wrap items-center justify-between gap-3 border border-amber-500/20 shadow-xl">
+                <div class="flex items-center gap-2">
+                    <div class="w-8 h-8 rounded-lg bg-rose-500/20 border border-rose-500/40 text-rose-400 flex items-center justify-center text-sm">
+                        <i class="fa-solid fa-crosshairs"></i>
+                    </div>
+                    <div>
+                        <div class="text-xs font-bold text-slate-200">Office Warfare Dock</div>
+                        <div class="text-[10px] text-slate-400">Select an item, then click any player's avatar to launch!</div>
+                    </div>
+                </div>
+
+                <!-- Weapon Selectors -->
+                <div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+                    <button onclick="selectWeapon('airplane')" id="wpn-airplane" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 relative group flex items-center gap-1.5" title="Paper Airplane">
+                        <span class="text-xl">✈️</span>
+                        <span class="text-xs font-bold text-slate-300 hidden sm:inline">Airplane</span>
+                    </button>
+
+                    <button onclick="selectWeapon('paperball')" id="wpn-paperball" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 relative group flex items-center gap-1.5" title="Paper Ball">
+                        <span class="text-xl">📄</span>
+                        <span class="text-xs font-bold text-slate-300 hidden sm:inline">Paper Ball</span>
+                    </button>
+
+                    <button onclick="selectWeapon('coffee')" id="wpn-coffee" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 relative group flex items-center gap-1.5" title="Hot Coffee Splash">
+                        <span class="text-xl">☕</span>
+                        <span class="text-xs font-bold text-slate-300 hidden sm:inline">Coffee</span>
+                    </button>
+
+                    <button onclick="selectWeapon('gum')" id="wpn-gum" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 relative group flex items-center gap-1.5" title="Sticky Gum">
+                        <span class="text-xl">🍬</span>
+                        <span class="text-xs font-bold text-slate-300 hidden sm:inline">Gum</span>
+                    </button>
+
+                    <button onclick="selectWeapon('tomato')" id="wpn-tomato" class="weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 relative group flex items-center gap-1.5" title="Fresh Tomato">
+                        <span class="text-xl">🍅</span>
+                        <span class="text-xs font-bold text-slate-300 hidden sm:inline">Tomato</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- VOTING DECK DOCK (BOTTOM FIBONACCI CARDS) -->
+            <div class="glass-panel rounded-2xl p-4 border border-slate-800 shadow-2xl">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-extrabold uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                        <i class="fa-solid fa-layer-group"></i> Your Fibonacci Deck
+                    </span>
+                    <span class="text-[11px] text-slate-400" id="card-selected-label">Card selected: None</span>
+                </div>
+
+                <div class="flex items-center justify-between gap-1.5 md:gap-2 overflow-x-auto pt-2 pb-1 px-1" id="deck-container">
+                    <!-- Cards dynamically rendered via JS -->
+                </div>
+            </div>
+
+        </section>
+
+        <!-- RIGHT SIDEBAR: FEED, BACKLOG & TECH ADS (Grid col 4 or 3) -->
+        <aside class="lg:col-span-4 xl:col-span-3 flex flex-col gap-4">
+            
+            <!-- SIDEBAR TAB SWITCHER -->
+            <div class="glass-panel rounded-2xl p-4 flex flex-col gap-4 border border-slate-800 shadow-xl flex-1">
+                
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <div class="flex items-center gap-2">
+                        <button onclick="switchSidebarTab('activity')" id="tab-btn-activity" class="text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition">
+                            Activity
+                        </button>
+                        <button onclick="switchSidebarTab('backlog')" id="tab-btn-backlog" class="text-xs font-bold px-3 py-1.5 rounded-xl text-slate-400 hover:text-slate-200 transition">
+                            Backlog (<span id="backlog-count">4</span>)
+                        </button>
+                        <button onclick="switchSidebarTab('stats')" id="tab-btn-stats" class="text-xs font-bold px-3 py-1.5 rounded-xl text-slate-400 hover:text-slate-200 transition">
+                            Stats
+                        </button>
+                    </div>
+                </div>
+
+                <!-- TAB 1: LIVE ACTIVITY FEED -->
+                <div id="tab-content-activity" class="flex-1 flex flex-col justify-between min-h-[280px]">
+                    <div class="space-y-2 overflow-y-auto max-h-[320px] pr-1" id="activity-log-list">
+                        <!-- Activity entries injected via JS -->
+                    </div>
+                    <div class="pt-3 border-t border-slate-800/80 text-[10px] text-slate-500 flex justify-between items-center">
+                        <span>Real-time Room Sync: Active</span>
+                        <span class="text-emerald-400 font-semibold"><i class="fa-solid fa-wifi mr-1"></i> Connected</span>
+                    </div>
+                </div>
+
+                <!-- TAB 2: BACKLOG QUEUE -->
+                <div id="tab-content-backlog" class="hidden space-y-2.5 overflow-y-auto max-h-[360px] pr-1">
+                    <div id="backlog-items-container">
+                        <!-- Injected via JS -->
+                    </div>
+                </div>
+
+                <!-- TAB 3: STATS & CONSENSUS DISTRIBUTION -->
+                <div id="tab-content-stats" class="hidden space-y-3">
+                    <div class="text-xs font-bold text-slate-300">Vote Distribution Chart</div>
+                    <div class="space-y-2" id="distribution-chart-container">
+                        <!-- Chart bars injected via JS -->
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- CARBON ADS / TECH AD SENSE PLACEHOLDER (300x250 Sidebar Card) -->
+            <div class="glass-panel rounded-2xl p-4 border border-blue-500/20 shadow-xl relative overflow-hidden group">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-[9px] uppercase font-bold text-slate-400 tracking-wider">Sponsored Partner</span>
+                    <span class="text-[9px] text-slate-500">Ad #3002</span>
+                </div>
+
+                <a href="#" onclick="showToast('Ad clicked: Redirecting to Vercel Enterprise...'); return false;" class="block">
+                    <div class="w-full h-28 rounded-xl bg-gradient-to-br from-slate-900 to-black p-3 border border-slate-800 flex flex-col justify-between relative overflow-hidden group-hover:border-blue-500/50 transition">
+                        <div class="flex items-center justify-between">
+                            <span class="text-white font-extrabold text-sm flex items-center gap-1.5">
+                                <span class="text-emerald-400">▲</span> Vercel
+                            </span>
+                            <span class="text-[10px] bg-blue-500/20 text-blue-300 px-2 py-0.5 rounded border border-blue-500/30 font-bold">Deploy Free</span>
+                        </div>
+                        <div>
+                            <div class="text-xs font-bold text-slate-200">Develop. Preview. Ship.</div>
+                            <div class="text-[10px] text-slate-400">The Frontend Cloud platform for Agile teams.</div>
+                        </div>
+                    </div>
+                </a>
+
+                <p class="text-[10px] text-slate-400 mt-2 text-center">
+                    Enjoying PokerScrum? Support server costs by viewing partner offers.
+                </p>
+            </div>
+
+        </aside>
+
+    </div>
+
+    <!-- MODAL: EDIT USER STORY -->
+    <div id="modal-edit-story" class="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex items-center justify-center hidden p-4">
+        <div class="glass-panel border border-slate-700 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+            <h3 class="text-base font-bold text-white mb-4 flex items-center gap-2">
+                <i class="fa-solid fa-pen-to-square text-emerald-400"></i> Edit Story Details
+            </h3>
+            <div class="space-y-3 mb-5">
+                <div>
+                    <label class="text-xs font-bold text-slate-400 block mb-1">Story Ticket ID</label>
+                    <input type="text" id="input-story-id" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white code-font focus:outline-none focus:border-emerald-500">
+                </div>
+                <div>
+                    <label class="text-xs font-bold text-slate-400 block mb-1">Story Title / Summary</label>
+                    <input type="text" id="input-story-title" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-emerald-500">
+                </div>
+            </div>
+            <div class="flex justify-end gap-2">
+                <button onclick="closeEditStoryModal()" class="px-4 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300">Cancel</button>
+                <button onclick="saveStoryEdits()" class="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 hover:bg-emerald-400 text-slate-950">Save Story</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= JAVASCRIPT APP LOGIC ================= -->
+    <script>
+        // --- CONSTANTS & DATA STRUCTURES ---
+        const FIBONACCI_CARDS = ['0', '1', '2', '3', '5', '8', '13', '21', '34', '55', '89', '?', '☕'];
+
+        const INITIAL_BACKLOG = [
+            { id: 'US-204', sprint: 'Sprint 48 • Payment Engine', title: 'Implement OAuth2 & Social Login (Google / GitHub)', points: null },
+            { id: 'US-205', sprint: 'Sprint 48 • Payment Engine', title: 'Refactor Stripe Webhook Listener for Idempotency', points: null },
+            { id: 'US-206', sprint: 'Sprint 48 • Analytics', title: 'Build Real-time WebSocket Dashboard for Active Users', points: null },
+            { id: 'US-207', sprint: 'Sprint 49 • Core UI', title: 'Migrate Styling Engine to Tailwind CSS v4', points: null }
+        ];
+
+        // Global State
+        let state = {
+            soundEnabled: true,
+            revealed: false,
+            selectedWeapon: 'airplane', // 'airplane', 'paperball', 'coffee', 'gum', 'tomato'
+            currentStoryIdx: 0,
+            backlog: [...INITIAL_BACKLOG],
+            myVote: null,
+            players: [
+                { id: 'p-1', name: 'You (Dev)', role: 'Frontend', avatar: '👨‍💻', isMe: true, vote: null, splats: [], roleColor: 'bg-emerald-950/80 text-emerald-300 border-emerald-800' },
+                { id: 'p-2', name: 'Sarah M.', role: 'Scrum Master', avatar: '👩‍💼', isMe: false, vote: null, splats: [], roleColor: 'bg-purple-950/80 text-purple-300 border-purple-800' },
+                { id: 'p-3', name: 'Alex K.', role: 'Lead Dev', avatar: '🧔', isMe: false, vote: null, splats: [], roleColor: 'bg-blue-950/80 text-blue-300 border-blue-800' },
+                { id: 'p-4', name: 'Maya T.', role: 'UX Designer', avatar: '🎨', isMe: false, vote: null, splats: [], roleColor: 'bg-pink-950/80 text-pink-300 border-pink-800' },
+                { id: 'p-5', name: 'Chen L.', role: 'QA Lead', avatar: '👩‍🔬', isMe: false, vote: null, splats: [], roleColor: 'bg-amber-950/80 text-amber-300 border-amber-800' },
+                { id: 'p-6', name: 'Dave P.', role: 'DevOps', avatar: '🚀', isMe: false, vote: null, splats: [], roleColor: 'bg-cyan-950/80 text-cyan-300 border-cyan-800' },
+                { id: 'p-7', name: 'Elena V.', role: 'Backend', avatar: '💻', isMe: false, vote: null, splats: [], roleColor: 'bg-indigo-950/80 text-indigo-300 border-indigo-800' },
+                { id: 'p-8', name: 'Marcus B.', role: 'Product Owner', avatar: '👑', isMe: false, vote: null, splats: [], roleColor: 'bg-rose-950/80 text-rose-300 border-rose-800' }
+            ],
+            activityLogs: []
+        };
+
+        // --- WEB AUDIO API SOUND SYNTHESIZER ---
+        class WebAudioSynth {
+            constructor() {
+                this.ctx = null;
+            }
+
+            init() {
+                if (!this.ctx) {
+                    this.ctx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+            }
+
+            playWhoosh() {
+                if (!state.soundEnabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(450, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(70, this.ctx.currentTime + 0.28);
+                gain.gain.setValueAtTime(0.25, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.28);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.28);
+            }
+
+            playImpact() {
+                if (!state.soundEnabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(140, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(30, this.ctx.currentTime + 0.18);
+                gain.gain.setValueAtTime(0.4, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.18);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.18);
+            }
+
+            playCardFlip() {
+                if (!state.soundEnabled) return;
+                this.init();
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(650, this.ctx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(220, this.ctx.currentTime + 0.09);
+                gain.gain.setValueAtTime(0.18, this.ctx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.09);
+                osc.connect(gain);
+                gain.connect(this.ctx.destination);
+                osc.start();
+                osc.stop(this.ctx.currentTime + 0.09);
+            }
+        }
+
+        const synth = new WebAudioSynth();
+
+        // --- APP INITIALIZATION ---
+        window.onload = function() {
+            renderStoryHeader();
+            renderDeck();
+            renderSeats();
+            renderBacklog();
+            updateWeaponDockUI();
+            logActivity("Room created. 8 team members joined.");
+            logActivity("Story #US-204 selected for estimation.");
+        };
+
+        // --- RENDER STORY HEADER ---
+        function renderStoryHeader() {
+            const current = state.backlog[state.currentStoryIdx];
+            document.getElementById('story-id').innerText = current.id;
+            document.getElementById('story-sprint').innerText = current.sprint;
+            document.getElementById('story-title').innerText = current.title;
+            document.getElementById('current-story-idx').innerText = state.currentStoryIdx + 1;
+            document.getElementById('total-stories-idx').innerText = state.backlog.length;
+        }
+
+        // --- RENDER FIBONACCI DECK ---
+        function renderDeck() {
+            const container = document.getElementById('deck-container');
+            container.innerHTML = '';
+
+            FIBONACCI_CARDS.forEach(val => {
+                const isSelected = state.myVote === val;
+                const card = document.createElement('button');
+                card.className = `min-w-[46px] md:min-w-[54px] h-[68px] md:h-[78px] rounded-xl font-extrabold text-sm md:text-base code-font transition-all duration-200 transform flex flex-col items-center justify-between p-2 border shadow-lg ${
+                    isSelected 
+                        ? 'bg-gradient-to-b from-emerald-400 to-teal-500 text-slate-950 border-emerald-200 -translate-y-3 scale-105 shadow-emerald-500/40' 
+                        : 'bg-slate-900 hover:bg-slate-800 text-slate-200 border-slate-700/80 hover:-translate-y-1'
+                }`;
+                card.innerHTML = `
+                    <span class="text-[10px] self-start opacity-70">${val}</span>
+                    <span class="text-base md:text-lg">${val}</span>
+                    <span class="text-[10px] self-end opacity-70">${val}</span>
+                `;
+                card.onclick = () => selectMyVote(val);
+                container.appendChild(card);
+            });
+
+            document.getElementById('card-selected-label').innerText = state.myVote ? `Card selected: ${state.myVote}` : 'Card selected: None';
+        }
+
+        // --- RENDER 8 PLAYER SEATS AROUND OVAL TABLE ---
+        function renderSeats() {
+            const container = document.getElementById('seats-layer');
+            container.innerHTML = '';
+
+            const total = state.players.length;
+            // Ellipse radii for seats placement
+            const rx = 45; // %
+            const ry = 44; // %
+
+            state.players.forEach((player, index) => {
+                // Distribute seats around 360deg
+                const angle = (index / total) * (2 * Math.PI) + (Math.PI / 2);
+                const posX = 50 + rx * Math.cos(angle);
+                const posY = 50 + ry * Math.sin(angle);
+
+                const seat = document.createElement('div');
+                seat.id = `seat-${player.id}`;
+                seat.style.left = `${posX}%`;
+                seat.style.top = `${posY}%`;
+                seat.style.transform = 'translate(-50%, -50%)';
+                seat.className = 'absolute pointer-events-auto flex flex-col items-center group transition-all duration-300';
+
+                const hasVoted = player.vote !== null;
+
+                seat.innerHTML = `
+                    <div class="relative flex flex-col items-center">
+                        
+                        <!-- CARD ON TABLE FOR PLAYER -->
+                        <div class="card-3d w-9 h-13 md:w-11 md:h-16 mb-1 ${state.revealed ? 'card-flipped' : ''}">
+                            <div class="card-inner">
+                                <div class="card-face-back ${hasVoted ? 'border-emerald-400 shadow-lg shadow-emerald-500/30' : 'border-slate-800 opacity-40'}">
+                                    ${hasVoted ? '<i class="fa-solid fa-check text-emerald-400 text-xs"></i>' : ''}
+                                </div>
+                                <div class="card-face-front text-xs md:text-sm font-extrabold code-font">
+                                    ${player.vote || '?'}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- AVATAR CIRCLE -->
+                        <div onclick="targetPlayerForThrow('${player.id}')" class="relative w-12 h-12 md:w-14 md:h-14 rounded-full bg-slate-900 border-2 ${hasVoted ? 'border-emerald-400 voted-ring' : 'border-slate-700'} ${player.isMe ? 'ring-2 ring-emerald-500/50' : ''} flex items-center justify-center text-xl md:text-2xl shadow-2xl cursor-pointer hover:scale-110 transition-transform">
+                            <span>${player.avatar}</span>
+
+                            <!-- Voted Badge -->
+                            ${hasVoted ? '<span class="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-slate-950 flex items-center justify-center text-[8px] text-slate-950 font-black"><i class="fa-solid fa-check"></i></span>' : ''}
+
+                            <!-- Hit Splat Stickers Container -->
+                            <div id="splats-${player.id}" class="absolute inset-0 pointer-events-none rounded-full overflow-hidden">
+                                ${player.splats.map(s => `<span class="splat-stain absolute text-sm" style="top:${s.y}%; left:${s.x}%;">${s.icon}</span>`).join('')}
+                            </div>
+
+                            <!-- Target Crosshair overlay on hover -->
+                            ${!player.isMe ? `
+                                <div class="absolute -bottom-6 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-950 text-[9px] text-amber-400 px-2 py-0.5 rounded-full border border-amber-500/40 whitespace-nowrap shadow-md pointer-events-none">
+                                    🎯 Target
+                                </div>
+                            ` : ''}
+                        </div>
+
+                        <!-- PLAYER NAME & ROLE -->
+                        <div class="mt-1 text-center">
+                            <div class="text-[11px] font-bold text-slate-200 line-clamp-1">${player.name}</div>
+                            <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.2 rounded border ${player.roleColor}">
+                                ${player.role}
+                            </span>
+                        </div>
+
+                    </div>
+                `;
+
+                container.appendChild(seat);
+            });
+        }
+
+        // --- VOTING LOGIC ---
+        function selectMyVote(val) {
+            synth.playCardFlip();
+            state.myVote = val;
+            
+            const me = state.players.find(p => p.isMe);
+            if (me) me.vote = val;
+
+            renderDeck();
+            renderSeats();
+            logActivity(`You voted on story #${state.backlog[state.currentStoryIdx].id}`);
+
+            // Simulate bots voting progress
+            simulateBotVotes();
+        }
+
+        function simulateBotVotes() {
+            state.players.forEach(p => {
+                if (!p.isMe && p.vote === null) {
+                    setTimeout(() => {
+                        if (!state.revealed) {
+                            const botChoices = ['3', '5', '5', '5', '8', '8', '13'];
+                            p.vote = botChoices[Math.floor(Math.random() * botChoices.length)];
+                            synth.playCardFlip();
+                            renderSeats();
+                            logActivity(`${p.name} (${p.role}) submitted a vote.`);
+                        }
+                    }, Math.random() * 2500 + 400);
+                }
+            });
+        }
+
+        // --- REVEAL ROUND & CONSENSUS ---
+        function toggleRevealRound() {
+            state.revealed = !state.revealed;
+            synth.playCardFlip();
+
+            const btn = document.getElementById('btn-reveal');
+            const statusIndicator = document.getElementById('voting-status-indicator');
+            const consensusView = document.getElementById('consensus-result-view');
+            const subStatusDesc = document.getElementById('sub-status-desc');
+
+            if (state.revealed) {
+                btn.innerHTML = `<i class="fa-solid fa-eye-slash"></i> Hide Cards`;
+                btn.classList.replace('from-emerald-500', 'from-slate-700');
+                btn.classList.replace('to-teal-600', 'to-slate-800');
+
+                statusIndicator.innerText = "Round Result";
+                statusIndicator.className = "text-xs uppercase font-extrabold tracking-widest text-amber-400 mb-1";
+
+                // Calculate statistics
+                const numericVotes = state.players
+                    .map(p => parseFloat(p.vote))
+                    .filter(v => !isNaN(v));
+
+                if (numericVotes.length > 0) {
+                    const sum = numericVotes.reduce((a, b) => a + b, 0);
+                    const avg = (sum / numericVotes.length).toFixed(1);
+
+                    document.getElementById('avg-score-display').innerText = avg;
+                    consensusView.classList.remove('hidden');
+                    subStatusDesc.innerText = `Computed from ${numericVotes.length} team votes`;
+
+                    // Confetti explosion for celebration!
+                    confetti({
+                        particleCount: 80,
+                        spread: 70,
+                        origin: { y: 0.6 }
+                    });
+
+                    logActivity(`Round revealed! Average estimate: ${avg} points.`);
+                    renderDistributionChart(numericVotes);
+                }
+
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-eye"></i> Reveal Cards`;
+                btn.classList.replace('from-slate-700', 'from-emerald-500');
+                btn.classList.replace('to-slate-800', 'to-teal-600');
+
+                statusIndicator.innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Voting In Progress`;
+                statusIndicator.className = "text-xs uppercase font-extrabold tracking-widest text-emerald-400 mb-1";
+                consensusView.classList.add('hidden');
+                subStatusDesc.innerText = "Select an estimation card from your bottom dock";
+            }
+
+            renderSeats();
+        }
+
+        function resetRound() {
+            state.revealed = false;
+            state.myVote = null;
+            state.players.forEach(p => p.vote = null);
+
+            const btn = document.getElementById('btn-reveal');
+            btn.innerHTML = `<i class="fa-solid fa-eye"></i> Reveal Cards`;
+
+            document.getElementById('voting-status-indicator').innerHTML = `<i class="fa-solid fa-spinner fa-spin mr-1"></i> Voting In Progress`;
+            document.getElementById('voting-status-indicator').className = "text-xs uppercase font-extrabold tracking-widest text-emerald-400 mb-1";
+            document.getElementById('consensus-result-view').classList.add('hidden');
+            document.getElementById('sub-status-desc').innerText = "Select an estimation card from your bottom dock";
+
+            renderDeck();
+            renderSeats();
+            showToast("Round reset for current story.");
+            logActivity("Round reset.");
+        }
+
+        // --- OFFICE WARFARE THROWING ENGINE ---
+        function selectWeapon(type) {
+            state.selectedWeapon = type;
+            updateWeaponDockUI();
+            showToast(`Selected weapon: ${type.toUpperCase()}`);
+        }
+
+        function updateWeaponDockUI() {
+            const list = ['airplane', 'paperball', 'coffee', 'gum', 'tomato'];
+            list.forEach(w => {
+                const btn = document.getElementById(`wpn-${w}`);
+                if (w === state.selectedWeapon) {
+                    btn.className = "weapon-btn p-2.5 rounded-xl bg-amber-500 text-slate-950 border border-amber-300 font-bold transition active:scale-95 shadow-lg shadow-amber-950";
+                } else {
+                    btn.className = "weapon-btn p-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 transition active:scale-95 relative group flex items-center gap-1.5";
+                }
+            });
+        }
+
+        function targetPlayerForThrow(targetId) {
+            const me = state.players.find(p => p.isMe);
+            if (!me) return;
+
+            if (targetId === me.id) {
+                showToast("You can't throw items at yourself! 😅");
+                return;
+            }
+
+            executeThrow(me.id, targetId, state.selectedWeapon);
+        }
+
+        function executeThrow(fromId, toId, weaponType) {
+            const fromSeat = document.getElementById(`seat-${fromId}`);
+            const toSeat = document.getElementById(`seat-${toId}`);
+
+            if (!fromSeat || !toSeat) return;
+
+            const fromRect = fromSeat.getBoundingClientRect();
+            const toRect = toSeat.getBoundingClientRect();
+
+            const startX = fromRect.left + fromRect.width / 2;
+            const startY = fromRect.top + fromRect.height / 2;
+            const endX = toRect.left + toRect.width / 2;
+            const endY = toRect.top + toRect.height / 2;
+
+            // Spawn projectile element
+            const proj = document.createElement('div');
+            proj.className = 'projectile-element';
+
+            const weaponIcons = {
+                airplane: '✈️',
+                paperball: '📄',
+                coffee: '☕',
+                gum: '🍬',
+                tomato: '🍅'
+            };
+
+            proj.innerText = weaponIcons[weaponType] || '✈️';
+            document.getElementById('projectile-layer').appendChild(proj);
+
+            synth.playWhoosh();
+
+            // Bezier arc trajectory
+            const duration = 550; // ms
+            const startTime = performance.now();
+            const arcHeight = -130;
+
+            function animateArc(now) {
+                const elapsed = now - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                const curX = startX + (endX - startX) * progress;
+                const linearY = startY + (endY - startY) * progress;
+                const curY = linearY + arcHeight * 4 * progress * (1 - progress);
+
+                const rotation = progress * 720;
+
+                proj.style.left = `${curX}px`;
+                proj.style.top = `${curY}px`;
+                proj.style.transform = `translate(-50%, -50%) rotate(${rotation}deg) scale(${1 + progress * 0.2})`;
+
+                if (progress < 1) {
+                    requestAnimationFrame(animateArc);
+                } else {
+                    proj.remove();
+                    triggerHitImpact(toId, weaponType);
+                }
+            }
+
+            requestAnimationFrame(animateArc);
+        }
+
+        function triggerHitImpact(targetId, weaponType) {
+            synth.playImpact();
+
+            const targetPlayer = state.players.find(p => p.id === targetId);
+            const seatEl = document.getElementById(`seat-${targetId}`);
+
+            if (seatEl) {
+                seatEl.classList.add('hit-impact');
+                setTimeout(() => seatEl.classList.remove('hit-impact'), 500);
+            }
+
+            if (targetPlayer) {
+                const icons = { airplane: '🩹', paperball: '💥', coffee: '☕', gum: '🍬', tomato: '🍅' };
+                targetPlayer.splats.push({
+                    icon: icons[weaponType] || '💥',
+                    x: Math.floor(Math.random() * 50) + 25,
+                    y: Math.floor(Math.random() * 50) + 25
+                });
+
+                if (targetPlayer.splats.length > 5) targetPlayer.splats.shift();
+
+                renderSeats();
+                logActivity(`You hit ${targetPlayer.name} with a ${weaponType.toUpperCase()}!`);
+            }
+        }
+
+        // --- BACKLOG QUEUE & NAVIGATION ---
+        function renderBacklog() {
+            const container = document.getElementById('backlog-items-container');
+            container.innerHTML = '';
+
+            state.backlog.forEach((item, index) => {
+                const isActive = index === state.currentStoryIdx;
+                const div = document.createElement('div');
+                div.className = `p-3 rounded-xl border transition cursor-pointer ${
+                    isActive 
+                        ? 'bg-emerald-950/60 border-emerald-500/50 text-white' 
+                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:text-slate-200'
+                }`;
+                div.onclick = () => selectStory(index);
+                div.innerHTML = `
+                    <div class="flex items-center justify-between mb-1">
+                        <span class="code-font text-[10px] font-bold text-blue-400 bg-blue-950/80 px-1.5 py-0.5 rounded border border-blue-800/60">${item.id}</span>
+                        <span class="text-[10px] text-slate-500">${item.points ? item.points + ' pts' : 'Unestimated'}</span>
+                    </div>
+                    <div class="text-xs font-bold truncate">${item.title}</div>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function selectStory(idx) {
+            state.currentStoryIdx = idx;
+            renderStoryHeader();
+            renderBacklog();
+            resetRound();
+            logActivity(`Switched active story to #${state.backlog[idx].id}`);
+        }
+
+        function nextStory() {
+            if (state.currentStoryIdx < state.backlog.length - 1) {
+                selectStory(state.currentStoryIdx + 1);
+            }
+        }
+
+        function previousStory() {
+            if (state.currentStoryIdx > 0) {
+                selectStory(state.currentStoryIdx - 1);
+            }
+        }
+
+        // --- SIDEBAR TABS & LOGS ---
+        function switchSidebarTab(tab) {
+            ['activity', 'backlog', 'stats'].forEach(t => {
+                const btn = document.getElementById(`tab-btn-${t}`);
+                const content = document.getElementById(`tab-content-${t}`);
+                if (t === tab) {
+                    btn.className = "text-xs font-bold px-3 py-1.5 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 transition";
+                    content.classList.remove('hidden');
+                } else {
+                    btn.className = "text-xs font-bold px-3 py-1.5 rounded-xl text-slate-400 hover:text-slate-200 transition";
+                    content.classList.add('hidden');
+                }
+            });
+        }
+
+        function logActivity(msg) {
+            const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+            state.activityLogs.unshift({ time, msg });
+            if (state.activityLogs.length > 20) state.activityLogs.pop();
+
+            const container = document.getElementById('activity-log-list');
+            if (container) {
+                container.innerHTML = state.activityLogs.map(l => `
+                    <div class="text-[11px] bg-slate-900/60 p-2 rounded-lg border border-slate-800 flex items-start gap-2">
+                        <span class="code-font text-[9px] text-slate-500 mt-0.5">${l.time}</span>
+                        <span class="text-slate-300 font-medium">${l.msg}</span>
+                    </div>
+                `).join('');
+            }
+        }
+
+        function renderDistributionChart(votes) {
+            const counts = {};
+            votes.forEach(v => counts[v] = (counts[v] || 0) + 1);
+
+            const container = document.getElementById('distribution-chart-container');
+            container.innerHTML = Object.keys(counts).map(val => {
+                const cnt = counts[val];
+                const pct = Math.round((cnt / votes.length) * 100);
+                return `
+                    <div>
+                        <div class="flex justify-between text-[10px] font-bold text-slate-400 mb-1">
+                            <span>${val} Points</span>
+                            <span>${cnt} votes (${pct}%)</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                            <div class="h-full bg-emerald-500 rounded-full" style="width: ${pct}%"></div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // --- UTILITY MODALS & TOASTS ---
+        function toggleSound() {
+            state.soundEnabled = !state.soundEnabled;
+            const btn = document.getElementById('btn-sound');
+            btn.innerHTML = state.soundEnabled 
+                ? `<i class="fa-solid fa-volume-high text-xs"></i>` 
+                : `<i class="fa-solid fa-volume-xmark text-xs text-rose-400"></i>`;
+            showToast(state.soundEnabled ? "Audio FX enabled" : "Audio FX muted");
+        }
+
+        function copyInviteLink() {
+            const dummy = document.createElement('input');
+            document.body.appendChild(dummy);
+            dummy.value = window.location.href;
+            dummy.select();
+            document.execCommand('copy');
+            document.body.removeChild(dummy);
+            showToast("Room link copied to clipboard!");
+        }
+
+        function openEditStoryModal() {
+            const current = state.backlog[state.currentStoryIdx];
+            document.getElementById('input-story-id').value = current.id;
+            document.getElementById('input-story-title').value = current.title;
+            document.getElementById('modal-edit-story').classList.remove('hidden');
+        }
+
+        function closeEditStoryModal() {
+            document.getElementById('modal-edit-story').classList.add('hidden');
+        }
+
+        function saveStoryEdits() {
+            const idVal = document.getElementById('input-story-id').value.trim();
+            const titleVal = document.getElementById('input-story-title').value.trim();
+
+            if (idVal && titleVal) {
+                state.backlog[state.currentStoryIdx].id = idVal;
+                state.backlog[state.currentStoryIdx].title = titleVal;
+                renderStoryHeader();
+                renderBacklog();
+                closeEditStoryModal();
+                showToast("Story updated successfully!");
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toast-message').innerText = msg;
+            toast.classList.remove('translate-x-full');
+            setTimeout(() => {
+                toast.classList.add('translate-x-full');
+            }, 2600);
+        }
+    </script>
+
+<!-- PONTO_STEP3_BEGIN -->
+<script id="ponto-step3-interactions">
+(function () {
+'use strict';
+if (window.__pontoInteractions3) return;
+window.__pontoInteractions3 = true;
+
+const KEY = 'ponto.interactions.v3.preferences';
+const defaults = { enabled: true, sound: false, muted: [] };
+let prefs;
+try { prefs = Object.assign({}, defaults, JSON.parse(localStorage.getItem(KEY) || '{}')); }
+catch (_) { prefs = Object.assign({}, defaults); }
+if (!Array.isArray(prefs.muted)) prefs.muted = [];
+
+let actor = 'Você', choice = null, target = null, choosing = false;
+let lastAction = 0, expanded = false, audio = null;
+const activity = [], avatars = [];
+const reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const host = document.createElement('div');
+host.id = 'ponto-interactions-3';
+const root = host.attachShadow({ mode: 'open' });
+document.body.appendChild(host);
+
+function esc(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function store() {
+  try { localStorage.setItem(KEY, JSON.stringify(prefs)); } catch (_) {}
+}
+const shapes = {
+ plane: '<path d="M3 13 29 3 19 29l-5-10-11-6Z" fill="#ddd9ff" stroke="#9c8cff" stroke-width="1.5"/><path d="M14 19 29 3" stroke="#8e79f0" stroke-width="1.5"/>',
+ paper: '<path d="m9 4 13 1 7 10-5 12-15 2-7-12Z" fill="#f1f4f8" stroke="#9ca9be" stroke-width="1.5"/><path d="m9 4 3 11-3 14m3-14 10-10m-10 10 17 0m-17 0 12 12" fill="none" stroke="#b5bed0"/>',
+ coffee: '<path d="M7 10h17l-2 17H9Z" fill="#d5b590" stroke="#8b6546" stroke-width="1.5"/><path d="M24 13h3q6 5-4 10" fill="none" stroke="#d5b590" stroke-width="3"/><ellipse cx="15.5" cy="10" rx="8.5" ry="3.5" fill="#6c4231"/><path d="M11 5q-3-3 0-5m8 5q-3-3 0-5" fill="none" stroke="#e7ded8" stroke-linecap="round"/>',
+ gum: '<circle cx="16" cy="16" r="13" fill="#fa94c8" stroke="#e15aab" stroke-width="1.5"/><ellipse cx="12" cy="11" rx="5" ry="3" transform="rotate(-35 12 11)" fill="#ffd5ed"/><circle cx="23" cy="23" r="2" fill="#f06bb9"/>',
+ tomato: '<circle cx="16" cy="18" r="12" fill="#f36b64" stroke="#c44145" stroke-width="1.5"/><path d="m16 10-6-5 6 2 3-6 1 6 7-1-6 5Z" fill="#74aa6a"/><path d="M9 16q0-4 4-4" fill="none" stroke="#ffb0a0" stroke-width="2.5" stroke-linecap="round"/>',
+ football: '<circle cx="16" cy="16" r="14" fill="#f7fafc" stroke="#9ba7bb" stroke-width="1.5"/><path d="m16 9 7 5-3 8h-8l-3-8Zm-3-7 3 7m12 0-5 5m3 14-6-6M6 27l6-5M2 10l7 4" fill="#344256" stroke="#344256" stroke-width="1.3"/>'
+};
+const props = [
+ ['plane', 'Avião', 'avião|aviao|airplane|paper plane'],
+ ['paper', 'Papel', 'paper ball|papel|bolinha'],
+ ['coffee', 'Café', 'coffee|café|cafe'],
+ ['gum', 'Chiclete', 'gum|chiclete'],
+ ['tomato', 'Tomate', 'tomato|tomate'],
+ ['football', 'Bola', 'football|soccer|futebol|bola de futebol']
+];
+const reactions = ['👍','😂','💡','🤔','🎉','❤️'];
+
+function icon(kind, size) {
+  return '<svg aria-hidden="true" width="'+(size||26)+'" height="'+(size||26)+'" viewBox="0 0 32 32">'+(shapes[kind] || shapes.paper)+'</svg>';
+}
+root.innerHTML = `
+<style>
+:host{position:fixed;inset:0;display:block;z-index:2147483000;pointer-events:none;color:#e8edf5;font:13px/1.45 Inter,ui-sans-serif,system-ui,sans-serif}
+*{box-sizing:border-box}button,select{font:inherit}button{cursor:pointer}
+.panel{position:absolute;right:18px;bottom:18px;width:310px;max-width:calc(100vw - 24px);pointer-events:auto;background:#17212f;border:1px solid #3b475b;border-radius:17px;box-shadow:0 16px 48px #0006;overflow:hidden}
+.head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;gap:8px;background:#202c3b}
+.head button{border:0;background:none;color:inherit;padding:0;text-align:left}.heading{font-weight:750;display:block}.sub{font-size:11px;color:#a4b2c7}
+.body{padding:14px;max-height:65vh;overflow:auto}.body[hidden]{display:none}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}.line{height:1px;background:#344153;margin:12px 0}
+.label{font-size:10px;text-transform:uppercase;letter-spacing:.13em;color:#a6b7ce;font-weight:750;margin:0 0 7px}
+.target{background:#101a27;border:1px solid #354359;border-radius:10px;padding:10px;margin-bottom:10px}
+.target b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.small{font-size:11px;color:#afbdd0}.muted{color:#8796ad}
+.pick,.clear{background:#2c3c53;border:1px solid #4b5d77;border-radius:7px;color:#eff4ff;padding:6px 9px}
+.clear{font-size:11px;background:transparent}.reactions{display:grid;grid-template-columns:repeat(6,1fr);gap:5px}
+.react{border:1px solid #3b4a61;border-radius:9px;background:#223044;padding:7px 0;font-size:21px}
+.props{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.prop{display:flex;flex-direction:column;align-items:center;gap:4px;padding:8px 4px;color:#cbd5e5;border:1px solid #3b4a61;border-radius:9px;background:#223044;font-size:11px}
+.react.active,.prop.active{background:#4b4280;border-color:#b3a6ff;box-shadow:0 0 0 1px #b3a6ff inset}
+button:focus-visible,select:focus-visible{outline:3px solid #c3b7ff;outline-offset:2px}
+.switch{display:flex;align-items:center;gap:7px;font-size:12px;padding:4px 0;cursor:pointer}
+input{accent-color:#a79af6}.log{padding:0;margin:7px 0 0;list-style:none;max-height:126px;overflow:auto}.log li{font-size:11px;color:#bec9da;padding:5px 0;border-bottom:1px solid #2b394e}
+.note{color:#91a2bc;font-size:10px;margin:10px 0 0}
+.flight,.burst,.bubble,.toast{position:fixed;pointer-events:none}
+.flight{width:36px;height:36px;display:grid;place-items:center}
+.bubble{padding:5px 10px;background:#fff;border:1px solid #e0ddea;border-radius:15px 15px 15px 3px;box-shadow:0 5px 20px #0003;font-size:28px}
+.burst{width:70px;height:70px;border-radius:50%;display:grid;place-items:center}
+.toast{left:50%;bottom:24px;transform:translateX(-50%);background:#253447;color:#f0f3ff;border:1px solid #63708a;border-radius:10px;padding:10px 16px;max-width:calc(100vw - 32px);box-shadow:0 6px 30px #0005;font-size:12px;text-align:center}
+.live{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
+@media(max-width:600px){.panel{right:12px;bottom:12px;width:290px}.body{max-height:58vh}}
+@media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important}}
+</style>
+<section class="panel" aria-label="Interações entre participantes">
+  <header class="head">
+    <button id="toggle" aria-expanded="false" aria-controls="tools"><span class="heading">✦ Interações</span><span class="sub" id="summary">Reações e brincadeiras opcionais</span></button>
+    <button id="fold" aria-label="Abrir interações" style="font-size:19px;padding:4px 7px">＋</button>
+  </header>
+  <div class="body" id="tools" hidden>
+    <div class="target"><div class="row"><div style="min-width:0"><div class="label">Pessoa selecionada</div><b id="targetName">Ninguém ainda</b></div><button class="pick" id="pick">Escolher</button></div></div>
+    <p class="small" id="hint">Escolha uma reação ou objeto e clique no avatar da pessoa na mesa.</p>
+    <p class="label">Enviar uma reação</p><div class="reactions" id="reactions"></div>
+    <div class="line"></div>
+    <div class="row"><p class="label">Objetos · só diversão</p><button class="clear" id="clear">Desmarcar</button></div><div class="props" id="props"></div>
+    <div class="line"></div>
+    <label class="switch"><input type="checkbox" id="effects"> Ativar efeitos visuais</label>
+    <label class="switch"><input type="checkbox" id="sound"> Som discreto (opcional)</label>
+    <label class="switch"><input type="checkbox" id="mute" disabled> Não enviar efeitos para esta pessoa</label>
+    <div class="line"></div><p class="label">Atividade local</p><ul id="log" class="log"></ul>
+    <p class="note">Demonstração neste navegador. As ações não alteram votos ou estimativas e ainda não são transmitidas a outras pessoas. Alt + clique mantém a ação original do avatar.</p>
+  </div>
+</section>
+<div class="live" role="status" aria-live="polite" id="live"></div>`;
+
+const $ = id => root.getElementById(id);
+$('reactions').innerHTML = reactions.map(r => '<button class="react" data-reaction="'+r+'" aria-label="Selecionar reação '+r+'">'+r+'</button>').join('');
+$('props').innerHTML = props.map(p => '<button class="prop" data-prop="'+p[0]+'" aria-label="Selecionar '+p[1]+'">'+icon(p[0])+'<span>'+p[1]+'</span></button>').join('');
+
+function notice(message) {
+  $('live').textContent = message;
+  const old = root.querySelector('.toast'); if (old) old.remove();
+  const el = document.createElement('div'); el.className = 'toast'; el.textContent = message;
+  root.appendChild(el); setTimeout(() => el.remove(), 3000);
+}
+function setExpanded(value) {
+  expanded = value; $('tools').hidden = !value;
+  $('toggle').setAttribute('aria-expanded', String(value));
+  $('fold').textContent = value ? '−' : '＋';
+  $('fold').setAttribute('aria-label', value ? 'Recolher interações' : 'Abrir interações');
+}
+function update() {
+  $('effects').checked = !!prefs.enabled; $('sound').checked = !!prefs.sound;
+  $('targetName').textContent = target ? target.name : 'Ninguém ainda';
+  $('mute').disabled = !target;
+  $('mute').checked = !!(target && prefs.muted.includes(target.id));
+  $('pick').textContent = choosing ? 'Clique no avatar' : 'Escolher';
+  $('hint').textContent = choosing ? 'Agora clique no avatar da pessoa na mesa.' :
+    choice ? 'Selecionado: '+(choice.kind === 'reaction' ? choice.value : props.find(p=>p[0]===choice.value)[1])+'. Clique em um avatar para enviar.' :
+    'Escolha uma reação ou objeto e clique no avatar da pessoa na mesa.';
+  $('summary').textContent = !prefs.enabled ? 'Efeitos desativados' : choosing ? 'Escolha um avatar na mesa' : choice ? 'Clique no avatar para enviar' : 'Reações e brincadeiras opcionais';
+  root.querySelectorAll('[data-reaction]').forEach(b => {
+    const yes = !!(choice && choice.kind==='reaction' && choice.value===b.dataset.reaction);
+    b.classList.toggle('active',yes); b.setAttribute('aria-pressed',String(yes));
+  });
+  root.querySelectorAll('[data-prop]').forEach(b => {
+    const yes = !!(choice && choice.kind==='prop' && choice.value===b.dataset.prop);
+    b.classList.toggle('active',yes); b.setAttribute('aria-pressed',String(yes));
+  });
+  document.querySelectorAll('[data-ponto3-ready]').forEach(el=>el.removeAttribute('data-ponto3-ready'));
+  if (prefs.enabled && (choice || choosing)) scan().forEach(a => a.el.setAttribute('data-ponto3-ready','true'));
+}
+const pageStyle = document.createElement('style');
+pageStyle.id = 'ponto3-target-style';
+pageStyle.textContent = '[data-ponto3-ready="true"]{cursor:crosshair!important;outline:2px dashed #b5a5ff!important;outline-offset:4px!important}[data-ponto3-selected="true"]{box-shadow:0 0 0 2px #ab9bf6!important}';
+document.head.appendChild(pageStyle);
+
+function parentSeat(img) {
+  const known = img.closest('[data-player-id],[data-user-id],[data-participant-id],.player-seat,.participant,.player,.seat');
+  if (known && known.getBoundingClientRect().width < 280) return known;
+  let node = img.parentElement, best = node || img;
+  for (let i=0;node && i<4;i++,node=node.parentElement) {
+    if (node===document.body || node===document.documentElement) break;
+    const r=node.getBoundingClientRect();
+    if (r.width > 260 || r.height > 290) break;
+    best=node;
+  }
+  return best;
+}
+function nameOf(img, seat, index) {
+  const explicit=seat.getAttribute('data-player-name') || seat.getAttribute('data-name') || img.getAttribute('data-name');
+  if (explicit) return explicit;
+  const texts=Array.from(seat.querySelectorAll('span,p,b,strong,h3,h4,div')).filter(n=>n.children.length===0)
+    .map(n=>(n.textContent||'').trim()).filter(t=>t.length>1 && t.length<45 && !/^[\d?☕\s.]+$/.test(t));
+  const natural=texts.find(t=>!/(lead|master|owner|designer|devops|backend|frontend|votou|voted|developer)/i.test(t));
+  if (natural) return natural;
+  const alt=(img.getAttribute('alt')||'').replace(/avatar|personagem/ig,'').trim();
+  return alt || ('Participante '+(index+1));
+}
+function scan() {
+  avatars.length=0;
+  Array.from(document.querySelectorAll('img')).forEach(img=>{
+    const r=img.getBoundingClientRect();
+    if (r.width<26 || r.height<26 || r.width>150 || r.height>155 || r.width/r.height<0.62 || r.width/r.height>1.6) return;
+    const hints=[img.src,img.alt,img.className,img.parentElement&&img.parentElement.className].join(' ');
+    if (/(logo|sponsor|partner|banner|jetbrains|vercel|prop-icon)/i.test(hints) && !/(avatar|dicebear)/i.test(hints)) return;
+    const seat=parentSeat(img);
+    if (!/(avatar|dicebear|player|participant|seat|data:image\/svg|rounded-full)/i.test(hints+' '+seat.className) &&
+        !seat.hasAttribute('data-player-id') && !seat.hasAttribute('data-user-id')) return;
+    const name=nameOf(img,seat,avatars.length);
+    const id=seat.getAttribute('data-player-id') || seat.getAttribute('data-user-id') || name.toLowerCase().replace(/\s+/g,'-');
+    avatars.push({el:img,seat,name,id});
+  });
+  return avatars;
+}
+function avatarFromClick(event) {
+  const img=event.target && event.target.closest && event.target.closest('img');
+  const list=scan();
+  if (img) return list.find(a=>a.el===img) || null;
+  const e=event.target;
+  return list.find(a=>a.seat===e || (a.seat.contains(e) && a.seat.getBoundingClientRect().width<220)) || null;
+}
+function setTarget(person) {
+  target=person;
+  document.querySelectorAll('[data-ponto3-selected]').forEach(n=>n.removeAttribute('data-ponto3-selected'));
+  person.el.setAttribute('data-ponto3-selected','true'); update();
+}
+function center(el) { const r=el.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}; }
+function startPoint() {
+  const self=scan().find(a=>a.name.toLowerCase()===actor.toLowerCase() || /^(you|você|voce)$/i.test(a.name));
+  return self ? center(self.el) : center($('toggle'));
+}
+function beep() {
+  if (!prefs.sound) return;
+  try {
+    audio=audio || new (window.AudioContext || window.webkitAudioContext)();
+    if (audio.state==='suspended') audio.resume();
+    const osc=audio.createOscillator(),gain=audio.createGain();
+    osc.type='sine';osc.frequency.setValueAtTime(540,audio.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(270,audio.currentTime+.13);
+    gain.gain.setValueAtTime(.035,audio.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.001,audio.currentTime+.17);
+    osc.connect(gain);gain.connect(audio.destination);osc.start();osc.stop(audio.currentTime+.18);
+  } catch (_) {}
+}
+function animateSafe(el, frames, options, done) {
+  if (!el.animate) { setTimeout(()=>{el.remove();if(done)done();},100);return; }
+  try {
+    const animation=el.animate(frames,options);
+    animation.onfinish=()=>{el.remove();if(done)done();};
+    animation.oncancel=()=>el.remove();
+    setTimeout(()=>el.remove(),(options.duration||700)+1500);
+  } catch (_) {el.remove();if(done)done();}
+}
+function impact(where, kind) {
+  const particle=document.createElement('div');particle.className='burst';
+  particle.style.left=(where.x-35)+'px';particle.style.top=(where.y-35)+'px';
+  const colors={coffee:'#c59467',gum:'#f29bcc',tomato:'#f17d77',football:'#b9ceeb',plane:'#c0b0ff',paper:'#dbe3f0'};
+  particle.style.background='radial-gradient(circle,'+(colors[kind]||'#bfb3ff')+'66,transparent 70%)';
+  particle.innerHTML=icon(kind,44);root.appendChild(particle);
+  animateSafe(particle,[{opacity:.95,transform:'scale(.65)'},{opacity:0,transform:'scale(1.5)'}],{duration:reduceMotion?180:460,easing:'ease-out'});
+}
+function launch(kind,person) {
+  const to=center(person.el);
+  if (reduceMotion) {impact(to,kind);beep();return;}
+  const from=startPoint(),fly=document.createElement('div');
+  fly.className='flight';fly.style.left='0';fly.style.top='0';fly.innerHTML=icon(kind,34);root.appendChild(fly);
+  const frames=[];
+  for(let i=0;i<=12;i++){
+    const t=i/12,x=from.x+(to.x-from.x)*t-18;
+    const y=from.y+(to.y-from.y)*t-18-Math.sin(Math.PI*t)*Math.min(135,Math.abs(to.x-from.x)*.18+60);
+    frames.push({transform:'translate('+x+'px,'+y+'px) rotate('+(t*(kind==='football'?620:150))+'deg)',offset:t});
+  }
+  animateSafe(fly,frames,{duration:620,easing:'linear'},()=>{impact(to,kind);beep();});
+}
+function react(emoji,person) {
+  const p=center(person.el),bubble=document.createElement('div');
+  bubble.className='bubble';bubble.textContent=emoji;bubble.style.left=(p.x+15)+'px';bubble.style.top=(p.y-68)+'px';root.appendChild(bubble);
+  animateSafe(bubble,reduceMotion?[{opacity:1},{opacity:0}]:[{opacity:0,transform:'translateY(8px) scale(.7)'},{opacity:1,transform:'translateY(0) scale(1)',offset:.15},{opacity:1,transform:'translateY(-8px)',offset:.78},{opacity:0,transform:'translateY(-18px)'}],{duration:reduceMotion?1000:1900,easing:'ease-out'});
+  beep();
+}
+function record(text) {
+  activity.unshift({time:new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),text});
+  activity.splice(60);
+  $('log').innerHTML=activity.slice(0,12).map(a=>'<li><span class="muted">'+esc(a.time)+'</span> '+esc(a.text)+'</li>').join('');
+  $('live').textContent=text;
+}
+function send(person) {
+  if (!choice) return;
+  if (!prefs.enabled) {notice('Efeitos desativados. Ative-os no painel de interações.');return;}
+  if (prefs.muted.includes(person.id)) {notice('Esta pessoa está com efeitos silenciados neste navegador.');return;}
+  const now=Date.now();
+  if (now-lastAction<950) {notice('Espere um instante antes de enviar novamente.');return;}
+  lastAction=now;
+  const chosen=Object.assign({},choice);
+  if(chosen.kind==='reaction'){
+    react(chosen.value,person);record(actor+' enviou '+chosen.value+' para '+person.name+'.');
+  } else {
+    launch(chosen.value,person);record(actor+' lançou '+props.find(p=>p[0]===chosen.value)[1].toLowerCase()+' para '+person.name+'.');
+  }
+  window.dispatchEvent(new CustomEvent('ponto:interaction-local',{detail:{actor,target:person.name,kind:chosen.kind,value:chosen.value,localOnly:true}}));
+}
+function selectChoice(kind,value) {
+  choice=choice && choice.kind===kind && choice.value===value ? null : {kind,value};
+  choosing=false;update();
+  if(choice) notice('Agora clique em um avatar para enviar.');
+}
+$('toggle').onclick=()=>setExpanded(!expanded);$('fold').onclick=()=>setExpanded(!expanded);
+$('pick').onclick=()=>{choosing=!choosing;choice=null;update();if(choosing)notice('Clique no avatar da pessoa que deseja selecionar.');};
+$('clear').onclick=()=>{choice=null;choosing=false;update();};
+$('reactions').onclick=e=>{const b=e.target.closest('[data-reaction]');if(b)selectChoice('reaction',b.dataset.reaction);};
+$('props').onclick=e=>{const b=e.target.closest('[data-prop]');if(b)selectChoice('prop',b.dataset.prop);};
+$('effects').onchange=e=>{prefs.enabled=e.target.checked;store();update();};
+$('sound').onchange=e=>{prefs.sound=e.target.checked;store();if(prefs.sound)beep();};
+$('mute').onchange=e=>{
+  if(!target)return;
+  prefs.muted=prefs.muted.filter(id=>id!==target.id);
+  if(e.target.checked)prefs.muted.push(target.id);
+  store();update();
+};
+window.addEventListener('click',function(e){
+  if(e.altKey || e.target===host || (e.composedPath && e.composedPath().includes(host)))return;
+  const button=e.target && e.target.closest && e.target.closest('button,[role="button"]');
+  if(button){
+    const label=[button.textContent,button.title,button.getAttribute('aria-label'),button.getAttribute('data-item')].join(' ').trim();
+    const match=label.length<130 && props.find(p=>new RegExp(p[2],'i').test(label));
+    if(match && !/(download|baixar|upload|selecionar arquivo)/i.test(label)){
+      e.preventDefault();e.stopImmediatePropagation();selectChoice('prop',match[0]);return;
+    }
+  }
+  if(!choice && !choosing)return;
+  const person=avatarFromClick(e);if(!person)return;
+  e.preventDefault();e.stopImmediatePropagation();setTarget(person);
+  if(choosing){choosing=false;update();notice(person.name+' selecionado(a).');return;}
+  send(person);
+},true);
+window.addEventListener('keydown',e=>{if(e.key==='Escape'){choice=null;choosing=false;update();}});
+['pokerscrum:local-join','ponto:profile','ponto:local-join'].forEach(name=>window.addEventListener(name,e=>{
+  if(e.detail && typeof e.detail.name==='string')actor=e.detail.name.slice(0,48);
+}));
+update();record('Interações locais disponíveis. Nenhum voto ou ponto é alterado.');
+})();
+</script>
+<!-- PONTO_STEP3_END -->
+</body>
+</html>
